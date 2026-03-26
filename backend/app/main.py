@@ -1,20 +1,21 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from app.services.ea_api import EnvironmentAgencyService
+from app.services.risk_calculator import RiskCalculator
 from app.database.db import (
-    store_station, 
+    store_station,
     get_all_stations_from_db,
     find_nearby_stations,
-    get_latest_reading_for_station
+    get_latest_reading_for_station,
+    get_readings_history,
 )
 
 app = FastAPI(
     title="EcoFlood API",
-    description="Real-time flood monitoring system",
-    version="1.0.0"
+    description="Real-time flood monitoring and early-warning system",
+    version="1.0.0",
 )
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,107 +24,187 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize services
 ea_service = EnvironmentAgencyService()
+risk_calc = RiskCalculator()
 
-# ========== BASIC ENDPOINTS ==========
+# ── HEALTH ────────────────────────────────────────────────────────────────────
 
 @app.get("/")
 async def root():
-    return {
-        "message": "EcoFlood API is running",
-        "status": "healthy",
-        "version": "1.0.0"
-    }
+    return {"message": "EcoFlood API is running", "status": "healthy", "version": "1.0.0"}
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
 
-# ========== ENVIRONMENT AGENCY API ENDPOINTS ==========
+# ── LIVE EA API (no DB required) ──────────────────────────────────────────────
+
+@app.get("/api/live/stations/nearby")
+async def live_nearby_stations(
+    lat: float = Query(..., description="Latitude", example=51.5074),
+    lon: float = Query(..., description="Longitude", example=-0.1278),
+    radius_km: float = Query(10, description="Search radius km"),
+):
+    """
+    Query the Environment Agency API directly for nearby stations with
+    current water levels and snapshot risk assessment. No DB needed.
+    """
+    result = await ea_service.get_nearby_stations_live(lat, lon, radius_km)
+    if result.get("success"):
+        result["user_location"] = {"lat": lat, "lon": lon}
+    return result
+
 
 @app.get("/api/ea/stations")
-async def get_ea_stations(limit: int = Query(50, description="Number of stations")):
-    """Get stations directly from UK Environment Agency API"""
-    result = await ea_service.get_all_stations(limit)
-    return result
+async def get_ea_stations(limit: int = Query(50)):
+    return await ea_service.get_all_stations(limit)
+
 
 @app.get("/api/ea/stations/{station_id}/readings")
-async def get_ea_readings(
-    station_id: str, 
-    limit: int = Query(10, description="Number of readings")
-):
-    """Get readings directly from UK Environment Agency API"""
-    result = await ea_service.get_station_readings(station_id, limit)
-    return result
+async def get_ea_readings(station_id: str, limit: int = Query(24)):
+    return await ea_service.get_station_readings(station_id, limit)
 
-# ========== DATABASE SYNC ENDPOINTS ==========
+
+@app.get("/api/ea/stations/{station_id}/latest")
+async def get_station_latest(station_id: str):
+    """Latest reading for every measure at a station (level, flow, groundwater, etc.)"""
+    return await ea_service.get_station_latest_all_measures(station_id)
+
+# ── DB SYNC ───────────────────────────────────────────────────────────────────
 
 @app.post("/api/sync/stations")
-async def sync_stations_to_database(limit: int = Query(100, description="Number of stations to sync")):
-    """Fetch stations from EA API and store in our database"""
+async def sync_stations(limit: int = Query(100)):
     result = await ea_service.get_all_stations(limit)
-    
-    if not result.get('success'):
-        return {"success": False, "error": result.get('error')}
-    
-    stations = result.get('stations', [])
+    if not result.get("success"):
+        return {"success": False, "error": result.get("error")}
+    stations = result.get("stations", [])
     stored_count = 0
     errors = []
-    
-    for station in stations:
+    for s in stations:
         try:
-            stored = await store_station(station)
+            stored = await store_station(s)
             if stored:
                 stored_count += 1
         except Exception as e:
-            errors.append(f"Error with {station.get('stationReference')}: {str(e)}")
-    
+            errors.append(str(e))
     return {
         "success": True,
         "fetched": len(stations),
         "stored": stored_count,
-        "errors": errors if errors else None
+        "errors": errors or None,
     }
+
 
 @app.post("/api/sync/readings/{station_id}")
-async def sync_station_readings(station_id: str):
-    """Fetch and store readings for a specific station"""
-    result = await ea_service.fetch_and_store_readings(station_id)
-    return result
+async def sync_readings(station_id: str):
+    return await ea_service.fetch_and_store_readings(station_id)
 
-# ========== DATABASE QUERY ENDPOINTS ==========
+# ── DB QUERY ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/database/stations")
-async def get_database_stations():
-    """Get all stations from our database"""
+async def get_db_stations():
     stations = await get_all_stations_from_db()
-    return {
-        "success": True,
-        "count": len(stations),
-        "stations": stations
-    }
+    return {"success": True, "count": len(stations), "stations": stations}
 
-#currently unused - will be used for Flutter app
+
 @app.get("/api/stations/nearby")
-async def get_nearby_stations_endpoint(
-    lat: float = Query(..., description="Your latitude", example=51.5074),
-    lon: float = Query(..., description="Your longitude", example=-0.1278),
-    radius_km: float = Query(10, description="Search radius in km", example=10)
+async def get_nearby_stations(
+    lat: float = Query(..., example=51.5074),
+    lon: float = Query(..., example=-0.1278),
+    radius_km: float = Query(10),
 ):
-    """Find flood monitoring stations near your location with latest water levels"""
+    """Nearby stations from DB with latest readings."""
     stations = await find_nearby_stations(lat, lon, radius_km)
-    
-    # Add latest reading for each station
-    for station in stations:
-        latest = await get_latest_reading_for_station(station['id'])
-        station['latest_reading'] = latest
-    
+    for s in stations:
+        s["latest_reading"] = await get_latest_reading_for_station(s["id"])
     return {
         "success": True,
         "user_location": {"lat": lat, "lon": lon},
         "radius_km": radius_km,
         "stations_found": len(stations),
-        "stations": stations
+        "stations": stations,
     }
 
+# ── RISK ASSESSMENT ───────────────────────────────────────────────────────────
+
+@app.get("/api/stations/{station_id}/risk")
+async def get_station_risk(station_id: str):
+    """Velocity-based risk assessment for a DB station."""
+    return await risk_calc.assess_risk(station_id)
+
+
+@app.get("/api/stations/{station_id}/readings/history")
+async def get_station_readings_history(
+    station_id: str,
+    limit: int = Query(48, description="Number of readings (max 96)"),
+):
+    """Historical readings for charting."""
+    limit = min(limit, 96)
+    readings = await get_readings_history(station_id, limit)
+    return {"success": True, "station_id": station_id, "count": len(readings), "readings": readings}
+
+# ── ALERTS ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/alerts")
+async def get_active_alerts():
+    """
+    Assess risk for all DB stations and return those with HIGH or CRITICAL level.
+    """
+    stations = await get_all_stations_from_db()
+    alerts = []
+    for s in stations:
+        risk = await risk_calc.assess_risk(s["id"])
+        if risk["risk_level"] in ("HIGH", "CRITICAL"):
+            alerts.append({
+                **risk,
+                "station_name": s["station_name"],
+                "town": s.get("town"),
+                "river_name": s.get("river_name"),
+                "latitude": s.get("latitude"),
+                "longitude": s.get("longitude"),
+            })
+    return {
+        "success": True,
+        "alert_count": len(alerts),
+        "alerts": alerts,
+    }
+
+# ── FLOOD MAP DATA ────────────────────────────────────────────────────────────
+
+@app.get("/api/flood-map")
+async def get_flood_map(
+    lat: float = Query(...),
+    lon: float = Query(...),
+    radius_km: float = Query(25),
+):
+    """
+    Returns station positions with risk level for map overlay.
+    Uses live EA data so no DB sync is required.
+    """
+    result = await ea_service.get_nearby_stations_live(lat, lon, radius_km)
+    if not result.get("success"):
+        return result
+
+    map_points = [
+        {
+            "ea_station_id": s["ea_station_id"],
+            "station_name": s["station_name"],
+            "latitude": s["latitude"],
+            "longitude": s["longitude"],
+            "town": s.get("town"),
+            "river_name": s.get("river_name"),
+            "water_level": s.get("water_level"),
+            "risk_level": s.get("risk_level", "UNKNOWN"),
+            "distance_km": s.get("distance_km"),
+        }
+        for s in result["stations"]
+        if s.get("latitude") and s.get("longitude")
+    ]
+
+    return {
+        "success": True,
+        "center": {"lat": lat, "lon": lon},
+        "radius_km": radius_km,
+        "point_count": len(map_points),
+        "points": map_points,
+    }
