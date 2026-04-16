@@ -15,8 +15,8 @@ from pathlib import Path
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
-MODEL_PATH    = Path(__file__).parent.parent.parent.parent / "ai" / "models" / "flood_model.pkl"
-FEATURES_PATH = Path(__file__).parent.parent.parent.parent / "ai" / "models" / "feature_columns.json"
+MODEL_PATH    = Path(__file__).parent.parent / "models" / "flood_model.pkl"
+FEATURES_PATH = Path(__file__).parent.parent / "models" / "feature_columns.json"
 
 EA_BASE      = "https://environment.data.gov.uk/flood-monitoring"
 WEATHER_URL  = "https://api.open-meteo.com/v1/forecast"
