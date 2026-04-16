@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/station.dart';
+import '../models/flood_prediction.dart';
 import '../services/geocoding_service.dart';
 import '../utils/risk_style.dart';
 import '../widgets/station_card.dart';
+import '../widgets/ai_prediction_card.dart';
 
 class DashboardTab extends StatelessWidget {
   final Position? position;
@@ -14,6 +16,9 @@ class DashboardTab extends StatelessWidget {
   final bool loadingStations;
   final String? locationError;
   final String? stationsError;
+  final FloodPrediction? prediction;
+  final bool loadingPrediction;
+  final String? predictionError;
 
   const DashboardTab({
     super.key,
@@ -25,6 +30,9 @@ class DashboardTab extends StatelessWidget {
     required this.loadingStations,
     required this.locationError,
     required this.stationsError,
+    this.prediction,
+    this.loadingPrediction = false,
+    this.predictionError,
   });
 
   // Only stations that have at least one live reading
@@ -49,6 +57,12 @@ class DashboardTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildLocationCard(),
+          const SizedBox(height: 12),
+          AiPredictionCard(
+            prediction: prediction,
+            loading: loadingPrediction,
+            error: predictionError,
+          ),
           const SizedBox(height: 12),
           _buildAreaRiskCard(),
           const SizedBox(height: 20),

@@ -2,6 +2,8 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from app.services.ea_api import EnvironmentAgencyService
 from app.services.risk_calculator import RiskCalculator
+from app.services.flood_predictor import FloodPredictor
+from app.services.route_service import RouteService
 from app.database.db import (
     store_station,
     get_all_stations_from_db,
@@ -24,8 +26,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ea_service = EnvironmentAgencyService()
-risk_calc = RiskCalculator()
+ea_service     = EnvironmentAgencyService()
+risk_calc      = RiskCalculator()
+predictor      = FloodPredictor()
+route_service  = RouteService()
 
 # ── HEALTH ────────────────────────────────────────────────────────────────────
 
@@ -208,3 +212,52 @@ async def get_flood_map(
         "point_count": len(map_points),
         "points": map_points,
     }
+
+# ── AI FLOOD PREDICTION ───────────────────────────────────────────────────────
+
+@app.get("/api/predict/flood-risk")
+async def predict_flood_risk(
+    lat: float = Query(..., description="User latitude"),
+    lon: float = Query(..., description="User longitude"),
+    radius_km: float = Query(10, description="Search radius km"),
+):
+    """
+    AI-powered flood prediction for the next 3 days.
+    Fetches nearby stations + live weather, runs the XGBoost model,
+    and returns risk level with probability and reason.
+    """
+    # Get nearby stations with current water levels
+    stations_result = await ea_service.get_nearby_stations_live(lat, lon, radius_km)
+    if not stations_result.get("success"):
+        return {"success": False, "error": "Could not fetch nearby stations"}
+
+    stations = stations_result.get("stations", [])
+    return await predictor.predict(lat, lon, stations)
+
+# ── SAFE ROUTES ───────────────────────────────────────────────────────────────
+
+@app.get("/api/safe-places")
+async def get_safe_places(
+    lat: float = Query(...),
+    lon: float = Query(...),
+    radius_m: int = Query(5000, description="Search radius in metres"),
+):
+    """Nearest safe shelter places from OpenStreetMap."""
+    places = await route_service.get_safe_places(lat, lon, radius_m)
+    return {"success": True, "count": len(places), "places": places}
+
+
+@app.get("/api/safe-route")
+async def get_safe_route(
+    lat: float = Query(..., description="User latitude"),
+    lon: float = Query(..., description="User longitude"),
+    radius_m: int = Query(5000, description="Shelter search radius in metres"),
+    profile: str = Query("driving-car", description="driving-car | foot-walking"),
+):
+    """
+    Finds the nearest safe shelter and returns the route to it.
+    Used by Flutter when flood risk is HIGH or SEVERE.
+    """
+    return await route_service.get_safe_route_to_shelter(
+        lat=lat, lon=lon, radius_m=radius_m, profile=profile
+    )

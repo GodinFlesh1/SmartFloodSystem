@@ -6,6 +6,7 @@ import '../models/station.dart';
 import '../models/station_detail.dart';
 import '../services/api_service.dart';
 import '../utils/risk_style.dart';
+import 'safe_route_screen.dart';
 
 class MapTab extends StatefulWidget {
   final Position? position;
@@ -30,8 +31,30 @@ class _MapTabState extends State<MapTab> {
   StationDetail? _detail;
   bool _loadingDetail = false;
   String? _detailError;
+  bool _heatmapMode = false;
 
   Color _markerColor(String risk) => RiskStyle.of(risk).color;
+
+  // Heatmap circle color — semi-transparent, sized by risk intensity
+  Color _heatColor(String risk) {
+    switch (risk.toUpperCase()) {
+      case 'SEVERE':   return Colors.red.withOpacity(0.45);
+      case 'HIGH':     return Colors.deepOrange.withOpacity(0.35);
+      case 'ELEVATED': return Colors.orange.withOpacity(0.28);
+      case 'MODERATE': return Colors.yellow.withOpacity(0.22);
+      default:         return Colors.green.withOpacity(0.15);
+    }
+  }
+
+  double _heatRadius(String risk) {
+    switch (risk.toUpperCase()) {
+      case 'SEVERE':   return 4500;
+      case 'HIGH':     return 3500;
+      case 'ELEVATED': return 2800;
+      case 'MODERATE': return 2200;
+      default:         return 1800;
+    }
+  }
 
   Future<void> _onStationTap(Station station) async {
     setState(() {
@@ -79,7 +102,9 @@ class _MapTabState extends State<MapTab> {
     return Column(
       children: [
         Expanded(
-          child: FlutterMap(
+          child: Stack(
+            children: [
+              FlutterMap(
             options: MapOptions(
               initialCenter: userLatLng,
               initialZoom: 11,
@@ -90,8 +115,20 @@ class _MapTabState extends State<MapTab> {
               TileLayer(
                 urlTemplate:
                     'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.frontend',
+                userAgentPackageName: 'com.ecoflood.app',
               ),
+              // Heatmap layer — shown only in heatmap mode
+              if (_heatmapMode)
+                CircleLayer(
+                  circles: validStations.map((s) => CircleMarker(
+                    point: LatLng(s.latitude, s.longitude),
+                    radius: _heatRadius(s.riskLevel),
+                    useRadiusInMeter: true,
+                    color: _heatColor(s.riskLevel),
+                    borderColor: Colors.transparent,
+                    borderStrokeWidth: 0,
+                  )).toList(),
+                ),
               MarkerLayer(
                 markers: [
                   // User location
@@ -149,6 +186,105 @@ class _MapTabState extends State<MapTab> {
                     );
                   }),
                 ],
+              ),
+            ],
+              ),
+              // Safe route button — shown when any station is HIGH or SEVERE
+              if (widget.position != null &&
+                  validStations.any((s) => ['HIGH', 'SEVERE']
+                      .contains(s.riskLevel.toUpperCase())))
+                Positioned(
+                  bottom: 12,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SafeRouteScreen(
+                              position: widget.position!),
+                        ),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFB71C1C),
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: const [
+                            BoxShadow(
+                                color: Colors.black38,
+                                blurRadius: 8,
+                                offset: Offset(0, 3)),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.emergency, color: Colors.white, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Find Safe Route',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Heatmap toggle button
+              Positioned(
+                top: 12,
+                right: 12,
+                child: GestureDetector(
+                  onTap: () => setState(() => _heatmapMode = !_heatmapMode),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _heatmapMode
+                          ? const Color(0xFF1565C0)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [
+                        BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 6,
+                            offset: Offset(0, 2)),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.layers,
+                          size: 16,
+                          color: _heatmapMode
+                              ? Colors.white
+                              : const Color(0xFF1565C0),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _heatmapMode ? 'Heatmap ON' : 'Heatmap',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _heatmapMode
+                                ? Colors.white
+                                : const Color(0xFF1565C0),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

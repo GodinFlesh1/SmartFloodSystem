@@ -26,6 +26,26 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Background execution modes required by workmanager and location -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+		<string>location</string>
+		<string>remote-notification</string>
+	</array>
+	<!-- BGTaskScheduler identifiers for workmanager (must match task names) -->
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>ecoflood_flood_check</string>
+	</array>
+	<!-- Location usage descriptions (required for App Store / iOS permission dialogs) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>EcoFlood needs your location to check for nearby flood risks.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>EcoFlood monitors your location in the background to alert you of flood risks even when the app is closed.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>EcoFlood monitors your location in the background to alert you of flood risks even when the app is closed.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

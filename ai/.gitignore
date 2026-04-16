@@ -1,0 +1,6 @@
+.env
+venv
+data/raw/readings
+data/raw/weather
+data/raw/weather3
+data/

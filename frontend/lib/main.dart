@@ -1,7 +1,21 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'screens/shell_screen.dart';
+import 'services/notification_service.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  print('✅ Firebase connected: ${Firebase.app().name} | project: ${Firebase.app().options.projectId}');
+
+  // Must be registered before runApp so it is available when the app is killed.
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
   runApp(const EcoFloodApp());
 }
 

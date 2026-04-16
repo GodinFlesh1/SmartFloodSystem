@@ -99,6 +99,70 @@ async def get_readings_history(station_id: str, limit: int = 48) -> List[Dict]:
         return []
 
 
+# ── USERS ─────────────────────────────────────────────────────────────────────
+
+async def upsert_user(user_data: dict) -> Optional[Dict]:
+    """Insert or update a user row. Upserts on email."""
+    try:
+        result = supabase.table('users').upsert(user_data, on_conflict='email').execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        print(f"Error upserting user: {e}")
+        return None
+
+
+async def get_user_by_id(user_id: str) -> Optional[Dict]:
+    try:
+        result = supabase.table('users').select('*').eq('id', user_id).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        print(f"Error fetching user: {e}")
+        return None
+
+
+async def update_user_fcm_token(user_id: str, token: str) -> bool:
+    """Store an FCM device token for a user."""
+    try:
+        supabase.table('users').update({'fcm_token': token}).eq('id', user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Error updating FCM token: {e}")
+        return False
+
+
+async def get_users_for_notifications() -> List[Dict]:
+    """
+    Return users that are eligible for push notifications:
+      - notifications_enabled = true
+      - fcm_token is not null
+      - home_location is not null
+    """
+    try:
+        result = (
+            supabase.table('users')
+            .select('id, fcm_token, home_location, last_alert_sent_at')
+            .eq('notifications_enabled', True)
+            .not_.is_('fcm_token', 'null')
+            .not_.is_('home_location', 'null')
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        print(f"Error fetching notification users: {e}")
+        return []
+
+
+async def mark_user_alerted(user_id: str) -> None:
+    """Update last_alert_sent_at to now so we respect the 1-hour cooldown."""
+    try:
+        from datetime import datetime, timezone
+        supabase.table('users').update(
+            {'last_alert_sent_at': datetime.now(timezone.utc).isoformat()}
+        ).eq('id', user_id).execute()
+    except Exception as e:
+        print(f"Error marking user alerted: {e}")
+
+
 # ── GEO ───────────────────────────────────────────────────────────────────────
 
 def _haversine(lat1, lon1, lat2, lon2) -> float:

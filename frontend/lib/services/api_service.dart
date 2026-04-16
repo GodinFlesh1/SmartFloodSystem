@@ -1,19 +1,17 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import '../config/app_config.dart';
 import '../models/station.dart';
 import '../models/station_detail.dart';
+import '../models/flood_prediction.dart';
+import '../models/safe_route.dart';
 
 class ApiService {
-  // On web: backend runs on localhost.
-  // On Android emulator: 10.0.2.2 is the alias for the host machine's localhost.
-  static String get _baseUrl =>
-      kIsWeb ? 'http://localhost:8000' : 'http://10.0.2.2:8000';
-
+  static const String _baseUrl = AppConfig.apiBaseUrl;
   Future<List<Station>> getNearbyStations({
     required double lat,
     required double lon,
-    double radiusKm = 10,
+    double radiusKm = 5,
   }) async {
     final uri = Uri.parse(
       '$_baseUrl/api/live/stations/nearby?lat=$lat&lon=$lon&radius_km=$radiusKm',
@@ -52,5 +50,47 @@ class ApiService {
     }
 
     return StationDetail.fromJson(data);
+  }
+
+  Future<FloodPrediction> getAiPrediction({
+    required double lat,
+    required double lon,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/api/predict/flood-risk?lat=$lat&lon=$lon',
+    );
+    final response = await http.get(uri).timeout(const Duration(seconds: 20));
+
+    if (response.statusCode != 200) {
+      throw Exception('Prediction API error ${response.statusCode}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (data['success'] != true) {
+      throw Exception(data['error'] ?? 'Prediction failed');
+    }
+    return FloodPrediction.fromJson(data);
+  }
+
+  Future<SafeRoute> getSafeRoute({
+    required double lat,
+    required double lon,
+    int radiusM = 5000,
+    String profile = 'driving-car',
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/api/safe-route?lat=$lat&lon=$lon&radius_m=$radiusM&profile=$profile',
+    );
+    final response = await http.get(uri).timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception('Safe route API error ${response.statusCode}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (data['success'] != true) {
+      throw Exception(data['error'] ?? 'Could not find safe route');
+    }
+    return SafeRoute.fromJson(data);
   }
 }

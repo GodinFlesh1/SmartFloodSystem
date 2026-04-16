@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "415217552470",
+    "project_id": "smartfloodsys",
+    "storage_bucket": "smartfloodsys.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:415217552470:android:7d9cd791a93a8e6b3fbff7",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSNURFASdwg7UDAbQza0omCKMvzBP3Kz8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:415217552470:android:b4038aaa29ab43fc3fbff7",
+        "android_client_info": {
+          "package_name": "com.smartfloodsys.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSNURFASdwg7UDAbQza0omCKMvzBP3Kz8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
