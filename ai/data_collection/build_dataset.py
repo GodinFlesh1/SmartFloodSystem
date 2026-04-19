@@ -3,10 +3,13 @@ Merge station metadata + water level readings + weather data,
 then engineer features and create flood labels.
 
 Label logic:
-  flood = 1  if water_level > typical_high threshold for that station
+  flood = 1  if water level exceeds typical_high any day in t+1..t+3
   flood = 0  otherwise
 
-Output: data/processed/flood_dataset.csv  ← ready for model training
+Features use only PAST water levels plus past AND forecasted rainfall —
+matches what the predictor has access to at inference time.
+
+Output: data/processed/flood_dataset.csv
 """
 
 import pandas as pd
@@ -49,56 +52,69 @@ def load_data():
 
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create rolling and lag features from water level + rainfall."""
+    """Create lag/rolling features from past water level + past-and-future rainfall."""
     df = df.sort_values(["station_id", "date"]).copy()
-
     grp = df.groupby("station_id")
 
-    # ── Water level features ──────────────────────────────────────────────────
+    # ── Water level — PAST lags only (never use future) ───────────────────────
     df["level_lag_1d"]    = grp["water_level"].shift(1)
     df["level_lag_3d"]    = grp["water_level"].shift(3)
     df["level_lag_7d"]    = grp["water_level"].shift(7)
-    df["level_change_1d"] = df["water_level"] - df["level_lag_1d"]   # rising/falling
-    df["level_change_3d"] = df["water_level"] - df["level_lag_3d"]
+    df["level_change_1d"] = df["level_lag_1d"] - grp["water_level"].shift(2)
+    df["level_change_3d"] = df["level_lag_1d"] - grp["water_level"].shift(4)
     df["level_roll_7d"]   = grp["water_level"].transform(
-        lambda x: x.rolling(7, min_periods=1).mean()
+        lambda x: x.shift(1).rolling(7, min_periods=1).mean()
+    )
+    df["level_roll_max_7d"] = grp["water_level"].transform(
+        lambda x: x.shift(1).rolling(7, min_periods=1).max()
     )
 
-    # ── Rainfall features ─────────────────────────────────────────────────────
-    df["rain_3d"]  = grp["precipitation_sum"].transform(
+    # ── Rainfall — past accumulation (what has fallen already) ────────────────
+    df["rain_past_1d"]  = grp["precipitation_sum"].shift(0)   # today's reported rain
+    df["rain_past_3d"]  = grp["precipitation_sum"].transform(
         lambda x: x.rolling(3, min_periods=1).sum()
     )
-    df["rain_7d"]  = grp["precipitation_sum"].transform(
+    df["rain_past_7d"]  = grp["precipitation_sum"].transform(
         lambda x: x.rolling(7, min_periods=1).sum()
     )
-    df["rain_14d"] = grp["precipitation_sum"].transform(
+    df["rain_past_14d"] = grp["precipitation_sum"].transform(
         lambda x: x.rolling(14, min_periods=1).sum()
     )
-    df["rain_lag_1d"] = grp["precipitation_sum"].shift(1)
 
-    # ── Calendar features ─────────────────────────────────────────────────────
+    # ── Rainfall — FUTURE forecast (label window) ─────────────────────────────
+    # At inference we fetch these from Open-Meteo forecast_days. Using future
+    # data here is NOT leakage w.r.t. the label: it's legitimately available as
+    # a weather forecast when predicting t+1..t+3 floods.
+    future_rain_1 = grp["precipitation_sum"].shift(-1)
+    future_rain_2 = grp["precipitation_sum"].shift(-2)
+    future_rain_3 = grp["precipitation_sum"].shift(-3)
+    df["rain_next_1d"] = future_rain_1.fillna(0.0)
+    df["rain_next_3d"] = (
+        future_rain_1.fillna(0.0)
+        + future_rain_2.fillna(0.0)
+        + future_rain_3.fillna(0.0)
+    )
+
+    # ── Calendar ──────────────────────────────────────────────────────────────
     df["month"]       = df["date"].dt.month
     df["day_of_year"] = df["date"].dt.dayofyear
-    # UK flood season: Oct–Mar = 1
-    df["flood_season"] = df["month"].isin([10, 11, 12, 1, 2, 3]).astype(int)
 
-    # ── Level relative to station thresholds ──────────────────────────────────
-    df["level_above_typical_high"] = (
-        df["water_level"] - df["typical_high"]
-    ).clip(lower=0)
-
-    # Yesterday's level ratio — not leaky (past data), but highly predictive
+    # ── Level relative to station thresholds — past-only ──────────────────────
+    # level_pct_lag_1d = yesterday's level / threshold (past, not future)
     df["level_pct_lag_1d"] = np.where(
         df["typical_high"] > 0,
-        grp["water_level"].shift(1) / df["typical_high"],
+        df["level_lag_1d"] / df["typical_high"],
         np.nan,
     )
     df["level_pct_lag_3d"] = np.where(
         df["typical_high"] > 0,
-        grp["water_level"].shift(3) / df["typical_high"],
+        df["level_lag_3d"] / df["typical_high"],
         np.nan,
     )
+    # Was water already above threshold yesterday? Strong but legitimate signal.
+    df["lag1_above_threshold"] = (df["level_lag_1d"] > df["typical_high"]).astype(int)
 
+    # Kept for severity calc, not used as a feature
     df["level_pct_of_typical_high"] = np.where(
         df["typical_high"] > 0,
         df["water_level"] / df["typical_high"],
@@ -115,17 +131,12 @@ def create_labels(df: pd.DataFrame) -> pd.DataFrame:
     flood_in_1d : will water exceed threshold tomorrow?
     flood_in_3d : will water exceed threshold within 3 days?  ← primary label
     flood_in_7d : will water exceed threshold within 7 days?
-
-    This removes data leakage: the model must predict future state
-    from current/past observations only.
     """
     df = df.sort_values(["station_id", "date"]).copy()
     grp = df.groupby("station_id")
 
-    # Current flood state (for reference, NOT used as training label)
     currently_flooding = (df["water_level"] > df["typical_high"])
 
-    # Forward-shifted flood flags
     df["flood_in_1d"] = grp["water_level"].shift(-1).gt(df["typical_high"]).astype(int)
     df["flood_in_3d"] = (
         pd.concat([grp["water_level"].shift(-i) for i in range(1, 4)], axis=1)
@@ -140,10 +151,8 @@ def create_labels(df: pd.DataFrame) -> pd.DataFrame:
         .astype(int)
     )
 
-    # Primary training label = flood within 3 days
     df["flood"] = df["flood_in_3d"]
 
-    # Severity based on current level relative to threshold (for reference)
     pct = df["level_pct_of_typical_high"]
     conditions = [
         ~currently_flooding,
@@ -161,7 +170,6 @@ def build_dataset():
 
     stations, readings, weather = load_data()
 
-    # Merge readings with station thresholds
     print("\nMerging readings with station thresholds...")
     df = readings.merge(
         stations[["station_id", "typical_low", "typical_high",
@@ -170,54 +178,61 @@ def build_dataset():
         how="left",
     )
 
-    # Drop rows with no water level
     before = len(df)
     df = df.dropna(subset=["water_level"])
     print(f"  Dropped {before - len(df):,} rows with missing water level")
 
-    # Fill missing thresholds using per-station percentiles from historical data
-    # 95th percentile = proxy for flood threshold (level exceeded only 5% of the time)
+    # Only fill thresholds for stations with enough history and plausible values.
+    # Use the 97th percentile as a tighter flood proxy than 95th to cut false labels.
     missing_threshold = df["typical_high"].isna()
     if missing_threshold.any():
-        print(f"  Computing thresholds from historical data for "
+        print(f"  Imputing thresholds from history for "
               f"{df.loc[missing_threshold, 'station_id'].nunique()} stations...")
-        p95 = df.groupby("station_id")["water_level"].transform(lambda x: x.quantile(0.95))
-        p05 = df.groupby("station_id")["water_level"].transform(lambda x: x.quantile(0.05))
-        df.loc[missing_threshold, "typical_high"] = p95[missing_threshold]
-        df.loc[missing_threshold, "typical_low"]  = p05[missing_threshold]
-    print(f"  All stations have threshold data: {df['typical_high'].notna().all()}")
+        counts = df.groupby("station_id")["water_level"].transform("count")
+        p97 = df.groupby("station_id")["water_level"].transform(lambda x: x.quantile(0.97))
+        p03 = df.groupby("station_id")["water_level"].transform(lambda x: x.quantile(0.03))
 
-    # Merge weather
+        # Only impute where we have at least 180 days of history and a spread
+        spread = df.groupby("station_id")["water_level"].transform(lambda x: x.quantile(0.97) - x.quantile(0.50))
+        fillable = missing_threshold & (counts >= 180) & (spread > 0.05)
+        df.loc[fillable, "typical_high"] = p97[fillable]
+        df.loc[fillable, "typical_low"]  = p03[fillable]
+
+        # Drop stations that still have no threshold (not enough history) —
+        # we cannot reliably label them
+        before = len(df)
+        df = df.dropna(subset=["typical_high"])
+        df = df[df["typical_high"] > 0]
+        print(f"  Dropped {before - len(df):,} rows without usable threshold")
+
     print("Merging weather data...")
     weather["date"] = pd.to_datetime(weather["date"])
     df = df.merge(weather, on=["station_id", "date"], how="left")
 
-    # Feature engineering
+    # Fill missing rain with 0 so rolling/future sums work; weather is not
+    # perfectly complete for every station-day.
+    df["precipitation_sum"] = df["precipitation_sum"].fillna(0.0)
+
     print("Engineering features...")
     df = engineer_features(df)
 
-    # Create labels
     print("Creating flood labels...")
     df = create_labels(df)
 
-    # Drop rows still missing key features
-    feature_cols = [
-        "water_level", "level_lag_1d", "level_change_1d",
-        "rain_3d", "rain_7d", "typical_high",
+    # Drop rows where key past features are unknown (first 7 days of station history)
+    required = [
+        "water_level", "level_lag_1d", "level_lag_3d",
+        "level_change_1d", "level_roll_7d",
+        "rain_past_3d", "rain_past_7d", "typical_high",
     ]
-    df = df.dropna(subset=feature_cols)
+    df = df.dropna(subset=required)
 
-    # Summary
     flood_pct = df["flood"].mean() * 100
     print(f"\nDataset summary:")
     print(f"  Total rows  : {len(df):,}")
     print(f"  Stations    : {df['station_id'].nunique():,}")
-    print(f"  Date range  : {df['date'].min().date()} → {df['date'].max().date()}")
+    print(f"  Date range  : {df['date'].min().date()} -> {df['date'].max().date()}")
     print(f"  Flood events: {df['flood'].sum():,} ({flood_pct:.1f}% of days)")
-    print(f"\nSeverity breakdown:")
-    print(df["severity"].value_counts().sort_index().rename({
-        0: "MINIMAL", 1: "MODERATE", 2: "HIGH", 3: "SEVERE"
-    }))
 
     df.to_csv(OUT_FILE, index=False)
     print(f"\nDataset saved → {OUT_FILE}")

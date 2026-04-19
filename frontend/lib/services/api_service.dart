@@ -81,7 +81,8 @@ class ApiService {
     final uri = Uri.parse(
       '$_baseUrl/api/safe-route?lat=$lat&lon=$lon&radius_m=$radiusM&profile=$profile',
     );
-    final response = await http.get(uri).timeout(const Duration(seconds: 30));
+    // Generous timeout — backend retries Overpass up to 3 radii × 2 attempts
+    final response = await http.get(uri).timeout(const Duration(seconds: 90));
 
     if (response.statusCode != 200) {
       throw Exception('Safe route API error ${response.statusCode}');
@@ -92,5 +93,29 @@ class ApiService {
       throw Exception(data['error'] ?? 'Could not find safe route');
     }
     return SafeRoute.fromJson(data);
+  }
+
+  Future<RouteData> getRouteTo({
+    required double fromLat,
+    required double fromLon,
+    required double toLat,
+    required double toLon,
+    String profile = 'driving-car',
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl/api/route?from_lat=$fromLat&from_lon=$fromLon'
+      '&to_lat=$toLat&to_lon=$toLon&profile=$profile',
+    );
+    final response = await http.get(uri).timeout(const Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw Exception('Route API error ${response.statusCode}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (data['success'] != true) {
+      throw Exception(data['error'] ?? 'Could not get route');
+    }
+    return RouteData.fromJson(data);
   }
 }
