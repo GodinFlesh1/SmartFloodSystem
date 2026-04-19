@@ -20,7 +20,7 @@ firebase-admin==6.5.0
 fastapi==0.132.0
 xgboost==2.0.3
 joblib==1.4.2
-pandas==2.2.2
+pandas
 numpy==1.26.4
 scikit-learn==1.4.2
 frozenlist==1.8.0
