@@ -1,32 +1,34 @@
 EcoFlood Model Training Report
 ==================================================
-Dataset: 3,524,762 rows | 1986 stations
-Train/Test split: 80/20 time-based
+Dataset: 3,516,303 rows | 1980 stations
+Train/Val/Test: time-based 70/15/15
 
               precision    recall  f1-score   support
 
-    No Flood       0.96      0.75      0.84    636166
-       Flood       0.24      0.75      0.37     68389
+    No Flood       0.98      0.89      0.93    494015
+       Flood       0.32      0.78      0.45     32037
 
-    accuracy                           0.75    704555
-   macro avg       0.60      0.75      0.60    704555
-weighted avg       0.89      0.75      0.80    704555
+    accuracy                           0.88    526052
+   macro avg       0.65      0.84      0.69    526052
+weighted avg       0.94      0.88      0.91    526052
 
-ROC-AUC: 0.8384
-F1:      0.3660
+ROC-AUC       : 0.9274
+Avg Precision : 0.4846
+F1 (tuned)    : 0.4506
+Decision thr  : 0.2315
 
 Confusion Matrix:
-[[476507 159659]
- [ 17302  51087]]
+[[439683  54332]
+ [  6919  25118]]
 
 Top 10 Features:
-level_above_typical_high    0.316910
-rain_3d                     0.112590
-rain_7d                     0.058678
-temperature_2m_max          0.047810
-level_pct_lag_1d            0.047253
-month                       0.045971
-day_of_year                 0.040800
-precipitation_sum           0.035091
-rain_sum                    0.034299
-level_change_1d             0.033947
+rain_next_3d            0.259948
+lag1_above_threshold    0.129139
+level_pct_lag_1d        0.083267
+month                   0.064113
+rain_next_1d            0.060684
+rain_past_3d            0.049522
+rain_past_1d            0.048536
+temperature_2m_max      0.044477
+day_of_year             0.038834
+level_pct_lag_3d        0.023919

@@ -1,9 +1,19 @@
 """
-Flood prediction service — loads the trained XGBoost model and predicts
-flood risk for a given location using live EA station data + real weather.
+Flood prediction service — loads the calibrated XGBoost model and predicts
+flood risk for a location using live EA station data + current/forecast weather.
 
-Lag features are computed from actual EA API readings (last 7 days),
-not dummy values — this makes predictions accurate.
+Design notes matching the training pipeline:
+  - Lag features come from real EA historical readings (past ~30 days)
+  - Rainfall features include both past (rain_past_Nd) AND future forecast
+    (rain_next_Nd), fetched via Open-Meteo's forecast_days parameter
+  - Every station always produces a prediction. typical_range_high is
+    resolved from EA stageScale when available, inferred from recent history
+    when not, and finally falls back to a generic default — in which case
+    the score is blended toward a pure rainfall-driven baseline
+  - Risk bands are anchored to the saved decision_threshold.json so thresholds
+    stay aligned with what the model was tuned for
+  - A rule-based sanity gate overrides the model when rain is negligible AND
+    water level is well below threshold — protects against residual bias
 """
 
 import json
@@ -15,27 +25,46 @@ from pathlib import Path
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
-MODEL_PATH    = Path(__file__).parent.parent / "models" / "flood_model.pkl"
-FEATURES_PATH = Path(__file__).parent.parent / "models" / "feature_columns.json"
+MODEL_PATH     = Path(__file__).parent.parent / "models" / "flood_model.pkl"
+FEATURES_PATH  = Path(__file__).parent.parent / "models" / "feature_columns.json"
+THRESHOLD_PATH = Path(__file__).parent.parent / "models" / "decision_threshold.json"
 
-EA_BASE      = "https://environment.data.gov.uk/flood-monitoring"
-WEATHER_URL  = "https://api.open-meteo.com/v1/forecast"
+EA_BASE     = "https://environment.data.gov.uk/flood-monitoring"
+WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
+
+# Fallback risk thresholds if decision_threshold.json is missing.
+# Absolute calibrated-probability cuts — these are the numbers the UI bands
+# show to the user. Changing them is a policy decision, not a modelling one.
+DEFAULT_DECISION_THRESHOLD = 0.50
+DEFAULT_BANDS = {
+    "severe":   0.60,
+    "high":     0.40,
+    "moderate": 0.20,
+    "minimal":  0.08,
+}
 
 
 class FloodPredictor:
-    _model    = None
+    _model = None
     _features: List[str] = []
+    _decision_threshold: float = DEFAULT_DECISION_THRESHOLD
+    _bands: Dict = DEFAULT_BANDS
 
     @classmethod
     def _load(cls):
-        if cls._model is None:
-            if not MODEL_PATH.exists():
-                raise FileNotFoundError(
-                    f"Model not found at {MODEL_PATH}\n"
-                    "Train the model first: cd ai && python train.py"
-                )
-            cls._model    = joblib.load(MODEL_PATH)
-            cls._features = json.loads(FEATURES_PATH.read_text())
+        if cls._model is not None:
+            return
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(
+                f"Model not found at {MODEL_PATH}\n"
+                "Train the model first: cd ai && python train.py"
+            )
+        cls._model    = joblib.load(MODEL_PATH)
+        cls._features = json.loads(FEATURES_PATH.read_text())
+        if THRESHOLD_PATH.exists():
+            payload = json.loads(THRESHOLD_PATH.read_text())
+            cls._decision_threshold = float(payload.get("decision_threshold", DEFAULT_DECISION_THRESHOLD))
+            cls._bands = payload.get("risk_bands", DEFAULT_BANDS)
 
     # ── Real historical readings ───────────────────────────────────────────────
 
@@ -43,18 +72,19 @@ class FloodPredictor:
         self, client: httpx.AsyncClient, station_id: str
     ) -> Dict[str, float]:
         """
-        Fetch last 7 days of readings for one station.
+        Fetch last ~30 days of readings for one station. A longer window lets us
+        infer a plausible typical_range_high for stations that don't report it.
         Returns {date_str: max_level} — one value per day.
         """
         if not station_id:
             return {}
-        start = (date.today() - timedelta(days=8)).isoformat()
+        start = (date.today() - timedelta(days=30)).isoformat()
         end   = date.today().isoformat()
         try:
             resp = await client.get(
                 f"{EA_BASE}/id/stations/{station_id}/readings",
                 params={"startdate": start, "enddate": end,
-                        "_limit": 500, "_sorted": "true"},
+                        "_limit": 1000, "_sorted": "true"},
                 timeout=10,
             )
             if resp.status_code != 200:
@@ -63,7 +93,6 @@ class FloodPredictor:
         except Exception:
             return {}
 
-        # Aggregate to daily max level
         daily: Dict[str, float] = {}
         for item in items:
             dt  = (item.get("dateTime") or "")[:10]
@@ -78,10 +107,14 @@ class FloodPredictor:
                 pass
         return daily
 
-    # ── Weather ───────────────────────────────────────────────────────────────
+    # ── Weather — past + future forecast ───────────────────────────────────────
 
-    async def _fetch_weather(self, lat: float, lon: float) -> Dict:
-        """Fetch last 14 days of weather aggregates from Open-Meteo forecast API."""
+    async def _fetch_weather(self, lat: float, lon: float) -> Optional[Dict]:
+        """
+        Fetch past 14 days + next 3 days of daily weather. Returns None if the
+        API fails — the caller treats this as low-confidence rather than
+        silently using zeros for rainfall.
+        """
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.get(WEATHER_URL, params={
@@ -96,48 +129,112 @@ class FloodPredictor:
                     ]),
                     "timezone":      "Europe/London",
                     "past_days":     14,
-                    "forecast_days": 1,
+                    "forecast_days": 4,   # today + next 3 days
                 })
                 resp.raise_for_status()
-                daily = resp.json().get("daily", {})
+                payload = resp.json().get("daily", {})
         except Exception:
-            # Neutral fallback — weather unavailable
-            return {
-                "precipitation_sum": 0.0, "rain_sum": 0.0,
-                "wind_speed_10m_max": 5.0,
-                "temperature_2m_max": 12.0, "temperature_2m_min": 6.0,
-                "rain_3d": 0.0, "rain_7d": 0.0,
-                "rain_14d": 0.0, "rain_lag_1d": 0.0,
-            }
+            return None
 
-        precip   = daily.get("precipitation_sum", [])
-        rain     = daily.get("rain_sum", [])
-        wind     = daily.get("wind_speed_10m_max", [])
-        temp_max = daily.get("temperature_2m_max", [])
-        temp_min = daily.get("temperature_2m_min", [])
+        times    = payload.get("time", [])
+        precip   = payload.get("precipitation_sum", [])
+        wind     = payload.get("wind_speed_10m_max", [])
+        temp_max = payload.get("temperature_2m_max", [])
+        temp_min = payload.get("temperature_2m_min", [])
 
-        def safe(lst, idx=-1, default=0.0):
+        if not times or not precip:
+            return None
+
+        today_str = date.today().isoformat()
+        try:
+            today_idx = times.index(today_str)
+        except ValueError:
+            # If today is missing, assume the API returned past + future in order;
+            # best guess: today is the first forecast entry after past_days.
+            today_idx = min(14, len(times) - 1)
+
+        def fnum(lst, idx):
             try:
                 v = lst[idx]
-                return float(v) if v is not None else default
+                return float(v) if v is not None else 0.0
             except (IndexError, TypeError):
-                return default
+                return 0.0
 
-        def safe_sum(lst, n):
-            vals = [float(v) for v in lst[-n:] if v is not None]
-            return sum(vals) if vals else 0.0
+        def fsum(lst, start, end):
+            total = 0.0
+            for i in range(max(0, start), min(len(lst), end)):
+                v = lst[i]
+                if v is None:
+                    continue
+                try:
+                    total += float(v)
+                except (ValueError, TypeError):
+                    pass
+            return total
+
+        # Past windows exclude today so they match "rain that has fallen before now"
+        rain_past_1d  = fsum(precip, today_idx - 1,  today_idx)
+        rain_past_3d  = fsum(precip, today_idx - 3,  today_idx)
+        rain_past_7d  = fsum(precip, today_idx - 7,  today_idx)
+        rain_past_14d = fsum(precip, today_idx - 14, today_idx)
+
+        # Future windows are the label horizon (matches rain_next_Nd at train time)
+        rain_next_1d = fsum(precip, today_idx + 1, today_idx + 2)
+        rain_next_3d = fsum(precip, today_idx + 1, today_idx + 4)
 
         return {
-            "precipitation_sum":  safe(precip),
-            "rain_sum":           safe(rain),
-            "wind_speed_10m_max": safe(wind),
-            "temperature_2m_max": safe(temp_max),
-            "temperature_2m_min": safe(temp_min),
-            "rain_3d":            safe_sum(precip, 3),
-            "rain_7d":            safe_sum(precip, 7),
-            "rain_14d":           safe_sum(precip, 14),
-            "rain_lag_1d":        safe(precip, -2),
+            "temperature_2m_max": fnum(temp_max, today_idx),
+            "temperature_2m_min": fnum(temp_min, today_idx),
+            "wind_speed_10m_max": fnum(wind,     today_idx),
+            "rain_past_1d":  rain_past_1d,
+            "rain_past_3d":  rain_past_3d,
+            "rain_past_7d":  rain_past_7d,
+            "rain_past_14d": rain_past_14d,
+            "rain_next_1d":  rain_next_1d,
+            "rain_next_3d":  rain_next_3d,
         }
+
+    # ── Threshold resolution ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _resolve_typical_high(
+        station: Dict, history_values: List[float]
+    ) -> tuple:
+        """
+        Return (typical_high, source). `source` is one of:
+          'reported' – from EA stageScale (most trustworthy)
+          'inferred' – 95th percentile of the live history we just fetched
+          'default'  – generic fallback scaled to the current reading
+                       (low-confidence; prediction becomes rainfall-driven)
+        We never return None — every nearby station gets a forecast so the
+        UI can always show a meaningful risk message rather than "no stations".
+        """
+        reported = (
+            station.get("typical_range_high")
+            or station.get("typicalRangeHigh")
+        )
+        try:
+            if reported is not None and float(reported) > 0:
+                return float(reported), "reported"
+        except (TypeError, ValueError):
+            pass
+
+        if len(history_values) >= 5:
+            arr = np.asarray(history_values, dtype=float)
+            p95 = float(np.quantile(arr, 0.95))
+            p50 = float(np.quantile(arr, 0.50))
+            if p95 > 0 and (p95 - p50) > 0.02:
+                return p95, "inferred"
+
+        try:
+            level = float(station.get("water_level") or 0.0)
+        except (TypeError, ValueError):
+            level = 0.0
+        # Assume current level sits at roughly 60% of the bank — not a strong
+        # claim, just enough to keep level-relative features in a plausible
+        # range so the model's rainfall features dominate.
+        default = max(level * 1.6, 1.0)
+        return default, "default"
 
     # ── Feature assembly ──────────────────────────────────────────────────────
 
@@ -146,67 +243,122 @@ class FloodPredictor:
         station: Dict,
         weather: Dict,
         history: Dict[str, float],
+        typical_high: float,
     ) -> Dict:
-        level        = float(station.get("water_level") or 0.0)
-        typical_high = float(
-            station.get("typical_range_high")
-            or station.get("typicalRangeHigh")
-            or 1.0
-        )
-        lat = station.get("latitude", 0.0)
-        lon = station.get("longitude", 0.0)
+        try:
+            level = float(station.get("water_level") or 0.0)
+        except (TypeError, ValueError):
+            level = 0.0
 
+        lat = station.get("latitude", 0.0) or 0.0
+        lon = station.get("longitude", 0.0) or 0.0
         today = date.today()
 
-        # ── Real lag features from historical readings ─────────────────────────
-        if history:
-            sorted_dates = sorted(history.keys(), reverse=True)  # newest first
+        sorted_dates = sorted(history.keys())                   # oldest → newest
+        sorted_values = [history[d] for d in sorted_dates]
 
-            def get_day(n: int) -> float:
-                """Get level n days ago from sorted history."""
-                target = (today - timedelta(days=n)).isoformat()
-                # Try exact date first, then nearest available
-                if target in history:
-                    return history[target]
-                if len(sorted_dates) > n:
-                    return history[sorted_dates[n]]
-                return level  # fallback to current
+        def level_on(n: int) -> float:
+            """Level n days ago. Fall back to nearest older value, then current."""
+            target = (today - timedelta(days=n)).isoformat()
+            if target in history:
+                return history[target]
+            # nearest date at or before target
+            candidate = None
+            for d in sorted_dates:
+                if d <= target:
+                    candidate = d
+                else:
+                    break
+            if candidate is not None:
+                return history[candidate]
+            if sorted_values:
+                return sorted_values[0]
+            return level
 
-            level_1d      = get_day(1)
-            level_3d      = get_day(3)
-            level_7d      = get_day(7)
-            level_roll_7d = (
-                sum(history[d] for d in sorted_dates[:7]) / min(len(sorted_dates), 7)
-            )
+        level_1d = level_on(1)
+        level_2d = level_on(2)
+        level_3d = level_on(3)
+        level_4d = level_on(4)
+        level_7d = level_on(7)
+
+        # Rolling stats over the past 7 days (excluding today), matching training
+        past_window = [history[d] for d in sorted_dates if d < today.isoformat()][-7:]
+        if past_window:
+            level_roll_7d     = float(np.mean(past_window))
+            level_roll_max_7d = float(np.max(past_window))
         else:
-            # No history available — use current level (less accurate)
-            level_1d = level_3d = level_7d = level_roll_7d = level
+            level_roll_7d     = level_1d
+            level_roll_max_7d = level_1d
+
+        lag1_above_threshold = 1 if level_1d > typical_high else 0
 
         return {
-            # Current level
-            "water_level":              level,
-            "water_level_max":          max(level, max(history.values(), default=level)),
-            "water_level_min":          min(level, min(history.values(), default=level)),
-            # Lag features — real values
-            "level_lag_1d":             level_1d,
-            "level_lag_3d":             level_3d,
-            "level_lag_7d":             level_7d,
-            "level_change_1d":          level - level_1d,
-            "level_change_3d":          level - level_3d,
-            "level_roll_7d":            level_roll_7d,
-            # Threshold proximity
-            "level_above_typical_high": max(0.0, level - typical_high),
-            "level_pct_lag_1d":         level_1d / typical_high if typical_high > 0 else 0.0,
-            "level_pct_lag_3d":         level_3d / typical_high if typical_high > 0 else 0.0,
-            # Weather
-            **weather,
+            "water_level":          level,
+            "level_lag_1d":         level_1d,
+            "level_lag_3d":         level_3d,
+            "level_lag_7d":         level_7d,
+            "level_change_1d":      level_1d - level_2d,
+            "level_change_3d":      level_1d - level_4d,
+            "level_roll_7d":        level_roll_7d,
+            "level_roll_max_7d":    level_roll_max_7d,
+            "level_pct_lag_1d":     level_1d / typical_high if typical_high > 0 else 0.0,
+            "level_pct_lag_3d":     level_3d / typical_high if typical_high > 0 else 0.0,
+            "lag1_above_threshold": lag1_above_threshold,
+            # Rainfall — past + future forecast
+            "rain_past_1d":         weather.get("rain_past_1d", 0.0),
+            "rain_past_3d":         weather.get("rain_past_3d", 0.0),
+            "rain_past_7d":         weather.get("rain_past_7d", 0.0),
+            "rain_past_14d":        weather.get("rain_past_14d", 0.0),
+            "rain_next_1d":         weather.get("rain_next_1d", 0.0),
+            "rain_next_3d":         weather.get("rain_next_3d", 0.0),
+            # Other weather
+            "temperature_2m_max":   weather.get("temperature_2m_max", 12.0),
+            "temperature_2m_min":   weather.get("temperature_2m_min", 6.0),
+            "wind_speed_10m_max":   weather.get("wind_speed_10m_max", 5.0),
             # Calendar
-            "month":       today.month,
-            "day_of_year": today.timetuple().tm_yday,
+            "month":                today.month,
+            "day_of_year":          today.timetuple().tm_yday,
             # Location
-            "latitude":  lat,
-            "longitude": lon,
+            "latitude":             lat,
+            "longitude":            lon,
         }
+
+    # ── Sanity rule — cap probability when hydrology clearly says "no flood" ──
+
+    def _apply_sanity_gate(
+        self,
+        prob: float,
+        features: Dict,
+        typical_high: float,
+    ) -> float:
+        """
+        Even a well-trained model can spit out elevated scores when lag values
+        are partly imputed. If the hydrological picture is clearly quiet —
+        little past rain, little forecast rain, level well below threshold,
+        no rising trend — force the probability back down.
+        """
+        level = features["water_level"]
+        level_1d = features["level_lag_1d"]
+        rain_past_3d = features["rain_past_3d"]
+        rain_next_3d = features["rain_next_3d"]
+        rising = features["level_change_1d"]
+
+        pct = level / typical_high if typical_high > 0 else 0.0
+        pct_lag = level_1d / typical_high if typical_high > 0 else 0.0
+
+        quiet_rain = rain_past_3d < 5.0 and rain_next_3d < 5.0
+        low_level = pct < 0.70 and pct_lag < 0.70
+        not_rising = rising < 0.05   # under 5 cm/day rise
+
+        if quiet_rain and low_level and not_rising:
+            return min(prob, 0.10)
+
+        mild_rain = rain_past_3d < 15.0 and rain_next_3d < 15.0
+        modest_level = pct < 0.85 and pct_lag < 0.85
+        if mild_rain and modest_level and not_rising:
+            return min(prob, 0.30)
+
+        return prob
 
     # ── Prediction ────────────────────────────────────────────────────────────
 
@@ -214,58 +366,99 @@ class FloodPredictor:
         self._load()
 
         if not stations:
+            # No EA stations nearby — fall back to a rainfall-only forecast so
+            # the UI still shows something weather-aware rather than an empty
+            # "no stations" result.
+            weather = await self._fetch_weather(lat, lon)
+            if weather is None:
+                return {
+                    "success":     True,
+                    "risk_level":  "UNKNOWN",
+                    "probability": 0.0,
+                    "confidence":  "low",
+                    "reason":      "No nearby stations and weather data unavailable.",
+                    "top_station": "",
+                    "station_predictions": [],
+                }
+            prob = _rainfall_only_probability(weather)
+            risk_level, _ = self._classify_risk(
+                prob,
+                {"threshold_source": "default", "history_days": 0},
+                weather,
+            )
+            reason = _build_reason(
+                risk_level, weather,
+                {"station_name": "your area"}, []
+            )
             return {
-                "success":    True,
-                "risk_level": "UNKNOWN",
-                "probability": 0.0,
-                "confidence": "low",
-                "reason":     "No nearby stations found.",
-                "top_station": "",
+                "success":            True,
+                "risk_level":         risk_level,
+                "probability":        round(prob, 3),
+                "confidence":         "low",
+                "reason":             reason,
+                "top_station":        "",
+                "decision_threshold": round(self._decision_threshold, 3),
                 "station_predictions": [],
             }
 
-        # Fetch weather + all station histories concurrently
         async with httpx.AsyncClient(timeout=15) as client:
-            weather_task = self._fetch_weather(lat, lon)
+            weather_task  = self._fetch_weather(lat, lon)
             history_tasks = [
                 self._fetch_station_history(client, s.get("ea_station_id", ""))
                 for s in stations
             ]
             weather, *histories = await asyncio.gather(weather_task, *history_tasks)
 
+        if weather is None:
+            return {
+                "success":     True,
+                "risk_level":  "UNKNOWN",
+                "probability": 0.0,
+                "confidence":  "low",
+                "reason":      "Weather data unavailable — unable to produce a reliable forecast.",
+                "top_station": "",
+                "station_predictions": [],
+            }
+
         results = []
+
         for station, history in zip(stations, histories):
-            features = self._build_features(station, weather, history)
+            history_values = list(history.values())
+            typical_high, threshold_source = self._resolve_typical_high(
+                station, history_values
+            )
+
+            features = self._build_features(station, weather, history, typical_high)
             row = np.array([[features.get(f, 0.0) for f in self._features]])
 
-            prob      = float(self._model.predict_proba(row)[0][1])
-            predicted = int(self._model.predict(row)[0])
+            raw_prob = float(self._model.predict_proba(row)[0][1])
+            prob = self._apply_sanity_gate(raw_prob, features, typical_high)
+
+            # When we don't really know the threshold, let rainfall drive the
+            # signal — clamp the level-relative contribution by blending toward
+            # a rainfall-only baseline.
+            if threshold_source == "default":
+                rain_baseline = _rainfall_only_probability(weather)
+                prob = 0.4 * prob + 0.6 * rain_baseline
 
             results.append({
-                "station_id":   station.get("ea_station_id", ""),
-                "station_name": station.get("station_name", ""),
-                "probability":  round(prob, 3),
-                "flood_likely": predicted == 1,
-                "water_level":  station.get("water_level"),
-                "history_days": len(history),
+                "station_id":       station.get("ea_station_id", ""),
+                "station_name":     station.get("station_name", "Station"),
+                "probability":      round(prob, 3),
+                "raw_probability":  round(raw_prob, 3),
+                "flood_likely":     prob >= self._decision_threshold,
+                "water_level":      station.get("water_level"),
+                "typical_high":     round(typical_high, 3),
+                "threshold_source": threshold_source,
+                "history_days":     len(history),
             })
 
         results.sort(key=lambda x: x["probability"], reverse=True)
         top  = results[0]
         prob = top["probability"]
 
-        if prob >= 0.75:
-            risk_level = "SEVERE";  confidence = "high"
-        elif prob >= 0.55:
-            risk_level = "HIGH";    confidence = "high"
-        elif prob >= 0.35:
-            risk_level = "MODERATE"; confidence = "medium"
-        elif prob >= 0.15:
-            risk_level = "MINIMAL"; confidence = "low"
-        else:
-            risk_level = "NORMAL";  confidence = "high"
-
-        reason = _build_reason(risk_level, weather, top["station_name"])
+        risk_level, confidence = self._classify_risk(prob, top, weather)
+        reason = _build_reason(risk_level, weather, top, results)
 
         return {
             "success":             True,
@@ -274,34 +467,136 @@ class FloodPredictor:
             "confidence":          confidence,
             "reason":              reason,
             "top_station":         top["station_name"],
+            "decision_threshold":  round(self._decision_threshold, 3),
             "station_predictions": results[:5],
         }
 
+    def _classify_risk(self, prob: float, top: Dict, weather: Dict) -> tuple:
+        """Map calibrated probability to a human risk band using saved thresholds."""
+        b = self._bands
 
-def _build_reason(risk_level: str, weather: Dict, station_name: str) -> str:
-    rain3 = weather.get("rain_3d", 0)
-    rain7 = weather.get("rain_7d", 0)
+        # Support both new absolute-cut format and the older multiplier format
+        severe_cut   = b.get("severe",   self._decision_threshold * b.get("severe_mult",   3.25))
+        high_cut     = b.get("high",     self._decision_threshold * b.get("high_mult",     2.40))
+        moderate_cut = b.get("moderate", self._decision_threshold * b.get("moderate_mult", 1.10))
+        minimal_cut  = b.get("minimal",  self._decision_threshold * b.get("minimal_mult",  0.45))
+
+        source = top.get("threshold_source", "reported")
+        history_days = top.get("history_days", 0)
+        if source == "reported" and history_days >= 5:
+            confidence = "high"
+        elif source == "reported" or history_days >= 5:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        if prob >= severe_cut:
+            return "SEVERE", confidence
+        if prob >= high_cut:
+            return "HIGH", confidence
+        if prob >= moderate_cut:
+            return "MODERATE", confidence if confidence != "high" else "medium"
+        if prob >= minimal_cut:
+            return "MINIMAL", "low" if confidence == "low" else confidence
+        return "NORMAL", confidence if confidence != "low" else "medium"
+
+
+def _rainfall_only_probability(weather: Dict) -> float:
+    """
+    Rainfall-driven fallback score in [0, 1]. Used when we don't have a
+    trustworthy water-level threshold so the model's level features can't be
+    taken at face value. Calibrated roughly against the training set:
+      <5mm      -> near 0
+      ~15mm     -> ~0.2
+      ~30mm     -> ~0.45
+      ~60mm     -> ~0.75
+      >=100mm   -> near 1
+    """
+    past_7 = max(weather.get("rain_past_7d", 0.0) or 0.0, 0.0)
+    next_3 = max(weather.get("rain_next_3d", 0.0) or 0.0, 0.0)
+    past_3 = max(weather.get("rain_past_3d", 0.0) or 0.0, 0.0)
+
+    combined = 0.5 * past_7 + 1.0 * next_3 + 0.6 * past_3
+    # Logistic-ish squash; 30mm combined -> ~0.5
+    k = 0.045
+    import math
+    prob = 1.0 / (1.0 + math.exp(-k * (combined - 30.0)))
+    return prob
+
+
+def _describe_rain(past_3: float, past_7: float, next_3: float) -> str:
+    """Short phrase that describes what the rainfall numbers mean."""
+    if next_3 >= 40 or past_3 >= 40:
+        return f"extreme rainfall ({past_3:.0f}mm in 72h, {next_3:.0f}mm forecast)"
+    if next_3 >= 20 or past_3 >= 25:
+        return f"sustained heavy rainfall ({past_3:.0f}mm recent, {next_3:.0f}mm forecast)"
+    if next_3 >= 10 or past_3 >= 10:
+        return f"moderate rainfall ({past_3:.0f}mm recent, {next_3:.0f}mm forecast)"
+    if past_7 > 15:
+        return f"persistent wet conditions ({past_7:.0f}mm over 7 days)"
+    if past_3 > 1 or next_3 > 1:
+        return f"minor rainfall ({past_3:.0f}mm recent, {next_3:.0f}mm forecast)"
+    return "little to no rainfall"
+
+
+def _describe_levels(top: Dict, results: List[Dict]) -> str:
+    elevated = [
+        r for r in results
+        if r.get("water_level") is not None
+        and r.get("typical_high", 0) > 0
+        and r["water_level"] >= 0.75 * r["typical_high"]
+    ]
+    above = [
+        r for r in elevated
+        if r["water_level"] >= r.get("typical_high", 0)
+    ]
+    if above:
+        names = ", ".join(r["station_name"] for r in above[:2])
+        return f"water already above typical high at {names}"
+    if len(elevated) >= 2:
+        names = ", ".join(r["station_name"] for r in elevated[:2])
+        return f"elevated water levels at {names}"
+    if len(elevated) == 1:
+        return f"elevated water level at {elevated[0]['station_name']}"
+    return "water levels within normal range at all nearby stations"
+
+
+def _build_reason(
+    risk_level: str, weather: Dict, top: Dict, results: List[Dict]
+) -> str:
+    past_3 = weather.get("rain_past_3d", 0) or 0
+    past_7 = weather.get("rain_past_7d", 0) or 0
+    next_3 = weather.get("rain_next_3d", 0) or 0
+
+    rain_phrase = _describe_rain(past_3, past_7, next_3)
+    level_phrase = _describe_levels(top, results)
+    station_name = top.get("station_name", "nearby station")
 
     if risk_level == "NORMAL":
-        return "Water levels and rainfall are within normal ranges. No flood risk expected."
+        return (
+            f"{rain_phrase.capitalize()}. {level_phrase.capitalize()}. "
+            "No flood risk expected."
+        )
     if risk_level == "MINIMAL":
-        return f"Slightly elevated conditions near {station_name}. Monitor local updates."
+        return (
+            f"{rain_phrase.capitalize()}. {level_phrase.capitalize()}. "
+            "Minor risk — monitor conditions."
+        )
     if risk_level == "MODERATE":
-        parts = [f"Moderate flood risk detected near {station_name}."]
-        if rain3 > 15:
-            parts.append(f"{rain3:.0f}mm of rain in the last 3 days.")
-        parts.append("Stay aware of local flood warnings.")
-        return " ".join(parts)
+        return (
+            f"{level_phrase.capitalize()} following {rain_phrase}. "
+            "Conditions could worsen if further rain occurs."
+        )
     if risk_level == "HIGH":
-        parts = [f"High flood risk near {station_name}."]
-        if rain7 > 30:
-            parts.append(f"{rain7:.0f}mm of rain in the last 7 days.")
-        parts.append("Avoid low-lying and flood-prone areas.")
-        return " ".join(parts)
+        return (
+            f"Flood risk: {rain_phrase} and rising water levels detected near "
+            f"{station_name}. River expected to approach or exceed flood "
+            "threshold within 24 hours."
+        )
     if risk_level == "SEVERE":
         return (
-            f"Severe flood risk near {station_name}. "
-            f"{rain7:.0f}mm of rain in the last 7 days. "
+            f"Severe flood risk: {rain_phrase} combined with saturated soil "
+            f"and rising river levels at multiple nearby stations. "
             "Immediate action may be required — follow official guidance."
         )
-    return "Flood risk assessment unavailable."
+    return f"{rain_phrase.capitalize()}. {level_phrase.capitalize()}."

@@ -4,6 +4,7 @@ Safe route and shelter service.
 - Calculates driving/walking route using OpenRouteService API
 """
 
+import asyncio
 import os
 import httpx
 from typing import Dict, List, Optional
@@ -15,7 +16,7 @@ ORS_BASE     = "https://api.openrouteservice.org"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
 SHELTER_QUERY = """
-[out:json][timeout:25];
+[out:json][timeout:30];
 (
   node["amenity"="community_centre"](around:{radius},{lat},{lon});
   node["amenity"="school"](around:{radius},{lat},{lon});
@@ -23,6 +24,9 @@ SHELTER_QUERY = """
   node["amenity"="place_of_worship"](around:{radius},{lat},{lon});
   node["building"="civic"](around:{radius},{lat},{lon});
   node["emergency"="assembly_point"](around:{radius},{lat},{lon});
+  node["amenity"="shelter"](around:{radius},{lat},{lon});
+  node["amenity"="police"](around:{radius},{lat},{lon});
+  node["amenity"="fire_station"](around:{radius},{lat},{lon});
 );
 out body;
 """
@@ -30,18 +34,16 @@ out body;
 
 class RouteService:
 
-    async def get_safe_places(
-        self, lat: float, lon: float, radius_m: int = 5000
-    ) -> List[Dict]:
+    async def _fetch_overpass(self, lat: float, lon: float, radius_m: int) -> List[Dict]:
+        """Query Overpass once. Returns raw place list or [] on failure."""
         query = SHELTER_QUERY.format(lat=lat, lon=lon, radius=radius_m)
-
-        async with httpx.AsyncClient(timeout=20) as client:
-            try:
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(OVERPASS_URL, data={"data": query})
                 resp.raise_for_status()
                 elements = resp.json().get("elements", [])
-            except Exception:
-                return []
+        except Exception:
+            return []
 
         places = []
         for el in elements:
@@ -54,21 +56,40 @@ class RouteService:
             if not place_lat or not place_lon:
                 continue
 
-            dist = _haversine(lat, lon, place_lat, place_lon)
+            dist    = _haversine(lat, lon, place_lat, place_lon)
             amenity = tags.get("amenity", tags.get("building", "shelter"))
 
             places.append({
-                "name":       name,
-                "type":       amenity,
-                "latitude":   place_lat,
-                "longitude":  place_lon,
-                "distance_m": round(dist * 1000),
+                "name":        name,
+                "type":        amenity,
+                "latitude":    place_lat,
+                "longitude":   place_lon,
+                "distance_m":  round(dist * 1000),
                 "distance_km": round(dist, 2),
-                "address":    tags.get("addr:street", ""),
+                "address":     tags.get("addr:street", ""),
             })
 
         places.sort(key=lambda x: x["distance_m"])
-        return places[:10]
+        return places
+
+    async def get_safe_places(
+        self, lat: float, lon: float, radius_m: int = 5000
+    ) -> List[Dict]:
+        """
+        Search for safe shelters with automatic radius expansion and retry.
+        Tries [radius_m, 2x, 4x] until shelters are found or all attempts fail.
+        """
+        search_radii = [radius_m, radius_m * 2, min(radius_m * 4, 20000)]
+
+        for attempt_radius in search_radii:
+            # Two attempts per radius level
+            for _ in range(2):
+                places = await self._fetch_overpass(lat, lon, attempt_radius)
+                if places:
+                    return places[:10]
+                await asyncio.sleep(1)
+
+        return []
 
     async def get_route(
         self,
@@ -78,7 +99,7 @@ class RouteService:
     ) -> Dict:
         ors_key = os.getenv("ORS_API_KEY", "")
         if not ors_key:
-            return {"success": False, "error": "ORS API key not configured"}
+            return {"success": False, "error": "Routing service not configured"}
 
         headers = {
             "Authorization": ors_key,
@@ -97,13 +118,13 @@ class RouteService:
 
         url = f"{ORS_BASE}/v2/directions/{profile}"
 
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=25) as client:
             try:
                 resp = await client.post(url, json=body, headers=headers)
                 resp.raise_for_status()
                 data = resp.json()
             except httpx.HTTPStatusError as e:
-                return {"success": False, "error": f"ORS error {e.response.status_code}"}
+                return {"success": False, "error": f"Routing API error {e.response.status_code}"}
             except Exception as e:
                 return {"success": False, "error": str(e)}
 
@@ -119,7 +140,6 @@ class RouteService:
                         "duration_s":  round(step.get("duration", 0)),
                     })
 
-            # Decode geometry (encoded polyline) to lat/lon list
             coords = _decode_polyline(route["geometry"])
 
             return {
@@ -128,7 +148,7 @@ class RouteService:
                 "duration_s":   round(summary["duration"]),
                 "distance_km":  round(summary["distance"] / 1000, 2),
                 "duration_min": round(summary["duration"] / 60),
-                "coordinates":  coords,  # [[lat,lon], ...]
+                "coordinates":  coords,
                 "steps":        steps,
                 "profile":      profile,
             }
@@ -145,8 +165,8 @@ class RouteService:
 
         if not places:
             return {
-                "success": False,
-                "error":   "No safe shelters found within radius.",
+                "success":      False,
+                "error":        "No safe shelters found in your area. Try moving to a different location.",
                 "all_shelters": [],
             }
 
@@ -157,12 +177,28 @@ class RouteService:
             profile=profile,
         )
 
+        if not route.get("success"):
+            # Return shelters even when routing fails so the user can still see options
+            return {
+                "success":       True,
+                "shelter":       nearest,
+                "all_shelters":  places,
+                "route": {
+                    "coordinates":  [],
+                    "steps":        [],
+                    "distance_m":   nearest["distance_m"],
+                    "distance_km":  nearest["distance_km"],
+                    "duration_min": 0,
+                    "profile":      profile,
+                },
+                "route_warning": route.get("error", "Turn-by-turn routing unavailable"),
+            }
+
         return {
-            "success":      route.get("success", False),
+            "success":      True,
             "shelter":      nearest,
             "all_shelters": places,
             "route":        route,
-            "error":        route.get("error"),
         }
 
 

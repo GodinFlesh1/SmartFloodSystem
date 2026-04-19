@@ -1,0 +1,9 @@
+{
+  "decision_threshold": 0.23146562278270721,
+  "risk_bands": {
+    "severe": 0.60,
+    "high": 0.40,
+    "moderate": 0.20,
+    "minimal": 0.08
+  }
+}

@@ -261,3 +261,19 @@ async def get_safe_route(
     return await route_service.get_safe_route_to_shelter(
         lat=lat, lon=lon, radius_m=radius_m, profile=profile
     )
+
+
+@app.get("/api/route")
+async def get_direct_route(
+    from_lat: float = Query(..., description="Origin latitude"),
+    from_lon: float = Query(..., description="Origin longitude"),
+    to_lat:   float = Query(..., description="Destination latitude"),
+    to_lon:   float = Query(..., description="Destination longitude"),
+    profile:  str   = Query("driving-car", description="driving-car | foot-walking"),
+):
+    """Route between two explicit coordinates (used when user picks a specific shelter)."""
+    return await route_service.get_route(
+        from_lat=from_lat, from_lon=from_lon,
+        to_lat=to_lat,     to_lon=to_lon,
+        profile=profile,
+    )
