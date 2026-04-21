@@ -12,8 +12,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ORS_BASE     = "https://api.openrouteservice.org"
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+ORS_BASE = "https://api.openrouteservice.org"
+
+OVERPASS_MIRRORS = [
+    "https://lz4.overpass-api.de/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.openstreetmap.ru/api/interpreter",
+]
+OVERPASS_HEADERS = {
+    "User-Agent": "EcoFlood/1.0 (academic flood-risk app; contact ishitajana20050@gmail.com)",
+    "Accept":     "application/json",
+}
 
 SHELTER_QUERY = """
 [out:json][timeout:30];
@@ -35,14 +45,23 @@ out body;
 class RouteService:
 
     async def _fetch_overpass(self, lat: float, lon: float, radius_m: int) -> List[Dict]:
-        """Query Overpass once. Returns raw place list or [] on failure."""
+        """Query Overpass mirrors in order; tries GET then POST per mirror."""
         query = SHELTER_QUERY.format(lat=lat, lon=lon, radius=radius_m)
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(OVERPASS_URL, data={"data": query})
-                resp.raise_for_status()
-                elements = resp.json().get("elements", [])
-        except Exception:
+        elements: List[Dict] = []
+        async with httpx.AsyncClient(timeout=30, headers=OVERPASS_HEADERS) as client:
+            for mirror in OVERPASS_MIRRORS:
+                try:
+                    resp = await client.get(mirror, params={"data": query})
+                    if resp.status_code == 200:
+                        elements = resp.json().get("elements", [])
+                        break
+                    resp = await client.post(mirror, data={"data": query})
+                    if resp.status_code == 200:
+                        elements = resp.json().get("elements", [])
+                        break
+                except Exception:
+                    continue
+        if not elements:
             return []
 
         places = []

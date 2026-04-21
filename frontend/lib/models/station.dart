@@ -47,6 +47,22 @@ class Station {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'ea_station_id': eaStationId,
+        'station_name': stationName,
+        'latitude': latitude,
+        'longitude': longitude,
+        'town': town,
+        'river_name': riverName,
+        'water_level': waterLevel,
+        'flow': flow,
+        'rainfall': rainfall,
+        'groundwater': groundwater,
+        'tidal': tidal,
+        'risk_level': riskLevel,
+        'distance_km': distanceKm,
+      };
+
   /// True if this station has any live reading
   bool get hasAnyReading =>
       waterLevel != null ||

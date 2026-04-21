@@ -22,4 +22,12 @@ class FloodPrediction {
       topStation: json['top_station'] ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'risk_level': riskLevel,
+        'probability': probability,
+        'confidence': confidence,
+        'reason': reason,
+        'top_station': topStation,
+      };
 }

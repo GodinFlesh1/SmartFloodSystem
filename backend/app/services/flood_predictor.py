@@ -21,9 +21,10 @@ import asyncio
 import joblib
 import httpx
 import numpy as np
+from cachetools import TTLCache
 from pathlib import Path
 from datetime import date, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 MODEL_PATH     = Path(__file__).parent.parent / "models" / "flood_model.pkl"
 FEATURES_PATH  = Path(__file__).parent.parent / "models" / "feature_columns.json"
@@ -31,6 +32,11 @@ THRESHOLD_PATH = Path(__file__).parent.parent / "models" / "decision_threshold.j
 
 EA_BASE     = "https://environment.data.gov.uk/flood-monitoring"
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
+
+# ── Module-level caches (survive across requests in the same process) ─────────
+_history_cache: TTLCache = TTLCache(maxsize=500, ttl=1800)   # per station_id, 30 min
+_meta_cache:    TTLCache = TTLCache(maxsize=500, ttl=86400)  # per station_id, 24 hr
+_weather_cache: TTLCache = TTLCache(maxsize=100, ttl=7200)   # per location, 2 hr
 
 # Fallback risk thresholds if decision_threshold.json is missing.
 # Absolute calibrated-probability cuts — these are the numbers the UI bands
@@ -66,7 +72,40 @@ class FloodPredictor:
             cls._decision_threshold = float(payload.get("decision_threshold", DEFAULT_DECISION_THRESHOLD))
             cls._bands = payload.get("risk_bands", DEFAULT_BANDS)
 
-    # ── Real historical readings ───────────────────────────────────────────────
+    # ── Station metadata (typicalRangeHigh) ─────────────────────────────────
+
+    async def _fetch_station_meta(
+        self, client: httpx.AsyncClient, station_id: str
+    ) -> Tuple[Optional[float], Optional[float]]:
+        """
+        Fetch (typicalRangeHigh, typicalRangeLow) from the individual station
+        endpoint. The stations-list endpoint returns stageScale as a URL string
+        not an embedded object, so typical_range_high is always None there.
+        Cached 24 hr — this data almost never changes.
+        """
+        if not station_id:
+            return None, None
+        if station_id in _meta_cache:
+            return _meta_cache[station_id]
+        try:
+            r = await client.get(f"{EA_BASE}/id/stations/{station_id}", timeout=8)
+            if r.status_code != 200:
+                result = (None, None)
+            else:
+                item = r.json().get("items", {})
+                if isinstance(item, list):
+                    item = item[0] if item else {}
+                stage = item.get("stageScale") or {}
+                if isinstance(stage, str):
+                    result = (None, None)
+                else:
+                    result = (stage.get("typicalRangeHigh"), stage.get("typicalRangeLow"))
+        except Exception:
+            result = (None, None)
+        _meta_cache[station_id] = result
+        return result
+
+    # ── Real historical readings ──────────────────────────────────────────────
 
     async def _fetch_station_history(
         self, client: httpx.AsyncClient, station_id: str
@@ -74,10 +113,12 @@ class FloodPredictor:
         """
         Fetch last ~30 days of readings for one station. A longer window lets us
         infer a plausible typical_range_high for stations that don't report it.
-        Returns {date_str: max_level} — one value per day.
+        Returns {date_str: max_level} — one value per day. Cached 30 min.
         """
         if not station_id:
             return {}
+        if station_id in _history_cache:
+            return _history_cache[station_id]
         start = (date.today() - timedelta(days=30)).isoformat()
         end   = date.today().isoformat()
         try:
@@ -105,16 +146,19 @@ class FloodPredictor:
                     daily[dt] = val
             except (ValueError, TypeError):
                 pass
+        _history_cache[station_id] = daily
         return daily
 
     # ── Weather — past + future forecast ───────────────────────────────────────
 
     async def _fetch_weather(self, lat: float, lon: float) -> Optional[Dict]:
         """
-        Fetch past 14 days + next 3 days of daily weather. Returns None if the
-        API fails — the caller treats this as low-confidence rather than
-        silently using zeros for rainfall.
+        Fetch past 14 days + next 3 days of daily weather. Cached 2 hr per
+        0.02-degree grid cell (~2 km). Returns None if the API fails.
         """
+        cache_key = (round(lat, 2), round(lon, 2))
+        if cache_key in _weather_cache:
+            return _weather_cache[cache_key]
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.get(WEATHER_URL, params={
@@ -134,6 +178,7 @@ class FloodPredictor:
                 resp.raise_for_status()
                 payload = resp.json().get("daily", {})
         except Exception:
+            _weather_cache[cache_key] = None
             return None
 
         times    = payload.get("time", [])
@@ -182,7 +227,7 @@ class FloodPredictor:
         rain_next_1d = fsum(precip, today_idx + 1, today_idx + 2)
         rain_next_3d = fsum(precip, today_idx + 1, today_idx + 4)
 
-        return {
+        result = {
             "temperature_2m_max": fnum(temp_max, today_idx),
             "temperature_2m_min": fnum(temp_min, today_idx),
             "wind_speed_10m_max": fnum(wind,     today_idx),
@@ -193,22 +238,32 @@ class FloodPredictor:
             "rain_next_1d":  rain_next_1d,
             "rain_next_3d":  rain_next_3d,
         }
+        _weather_cache[cache_key] = result
+        return result
 
     # ── Threshold resolution ───────────────────────────────────────────────────
 
     @staticmethod
     def _resolve_typical_high(
-        station: Dict, history_values: List[float]
+        station: Dict,
+        history_values: List[float],
+        meta_high: Optional[float] = None,
     ) -> tuple:
         """
-        Return (typical_high, source). `source` is one of:
-          'reported' – from EA stageScale (most trustworthy)
-          'inferred' – 95th percentile of the live history we just fetched
-          'default'  – generic fallback scaled to the current reading
-                       (low-confidence; prediction becomes rainfall-driven)
-        We never return None — every nearby station gets a forecast so the
-        UI can always show a meaningful risk message rather than "no stations".
+        Return (typical_high, source). Priority order:
+          1. 'reported' – meta fetched directly from individual station endpoint
+          2. 'reported' – from ea_api enrichment (usually None; stageScale is a URL)
+          3. 'inferred' – 95th percentile of 30-day history
+          4. 'default'  – current level × 1.6 (rainfall drives the prediction)
         """
+        # Priority 1: individual station metadata fetch
+        try:
+            if meta_high is not None and float(meta_high) > 0:
+                return float(meta_high), "reported"
+        except (TypeError, ValueError):
+            pass
+
+        # Priority 2: enriched station dict (usually None from list endpoint)
         reported = (
             station.get("typical_range_high")
             or station.get("typicalRangeHigh")
@@ -407,7 +462,17 @@ class FloodPredictor:
                 self._fetch_station_history(client, s.get("ea_station_id", ""))
                 for s in stations
             ]
-            weather, *histories = await asyncio.gather(weather_task, *history_tasks)
+            meta_tasks = [
+                self._fetch_station_meta(client, s.get("ea_station_id", ""))
+                for s in stations
+            ]
+            gathered = await asyncio.gather(
+                weather_task, *history_tasks, *meta_tasks
+            )
+            n        = len(stations)
+            weather  = gathered[0]
+            histories = gathered[1 : n + 1]
+            metas     = gathered[n + 1 :]
 
         if weather is None:
             return {
@@ -422,10 +487,11 @@ class FloodPredictor:
 
         results = []
 
-        for station, history in zip(stations, histories):
+        for station, history, meta in zip(stations, histories, metas):
             history_values = list(history.values())
+            meta_high = meta[0] if meta else None
             typical_high, threshold_source = self._resolve_typical_high(
-                station, history_values
+                station, history_values, meta_high=meta_high
             )
 
             features = self._build_features(station, weather, history, typical_high)

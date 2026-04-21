@@ -1,5 +1,9 @@
 import httpx
+from cachetools import TTLCache
 from typing import List, Dict, Optional
+
+_stations_cache: TTLCache = TTLCache(maxsize=200, ttl=1800)  # 30 min per location
+
 
 class EnvironmentAgencyService:
     BASE_URL = "https://environment.data.gov.uk/flood-monitoring"
@@ -24,6 +28,10 @@ class EnvironmentAgencyService:
         Reads are extracted from the measures embedded in each station response — this is
         reliable because it queries by station ID rather than a geographic readings search.
         """
+        cache_key = (round(lat, 2), round(lon, 2), dist_km)
+        if cache_key in _stations_cache:
+            return _stations_cache[cache_key]
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 # 1) Fetch stations with full measure details embedded
@@ -117,7 +125,9 @@ class EnvironmentAgencyService:
                     })
 
                 enriched.sort(key=lambda x: x['distance_km'] or 9999)
-                return {"success": True, "stations": enriched, "count": len(enriched)}
+                result = {"success": True, "stations": enriched, "count": len(enriched)}
+                _stations_cache[cache_key] = result
+                return result
 
             except Exception as e:
                 return {"success": False, "error": str(e)}

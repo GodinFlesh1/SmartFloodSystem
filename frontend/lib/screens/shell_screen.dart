@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/station.dart';
 import '../models/flood_prediction.dart';
 import '../services/api_service.dart';
+import '../services/cache_service.dart';
 import '../services/geocoding_service.dart';
 import '../services/notification_service.dart';
 import 'home_screen.dart';
@@ -21,6 +22,7 @@ class ShellScreen extends StatefulWidget {
 
 class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   final _apiService = ApiService();
+  final _cache = CacheService();
   final _geocodingService = GeocodingService();
 
   int _currentIndex = 0;
@@ -189,16 +191,29 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       _loadingPrediction = true;
       _predictionError = null;
     });
+
+    // Show cached prediction immediately, then fetch fresh in background
+    final cachedData = await _cache.loadPrediction();
+    if (cachedData != null && mounted) {
+      setState(() {
+        _prediction = FloodPrediction.fromJson(cachedData);
+        _loadingPrediction = false;
+      });
+    }
+
     try {
       final prediction = await _apiService.getAiPrediction(
         lat: _position!.latitude,
         lon: _position!.longitude,
       );
-      setState(() => _prediction = prediction);
+      await _cache.savePrediction(prediction.toJson());
+      if (mounted) setState(() => _prediction = prediction);
     } catch (e) {
-      setState(() => _predictionError = e.toString());
+      if (_prediction == null && mounted) {
+        setState(() => _predictionError = e.toString());
+      }
     } finally {
-      setState(() => _loadingPrediction = false);
+      if (mounted) setState(() => _loadingPrediction = false);
     }
   }
 
@@ -474,16 +489,36 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       _loadingStations = true;
       _stationsError = null;
     });
+
+    // Show cached stations immediately, then fetch fresh in background
+    final cachedList = await _cache.loadStations(
+      lat: _position!.latitude,
+      lon: _position!.longitude,
+    );
+    if (cachedList != null && mounted) {
+      setState(() {
+        _stations = cachedList.map(Station.fromJson).toList();
+        _loadingStations = false;
+      });
+    }
+
     try {
       final stations = await _apiService.getNearbyStations(
         lat: _position!.latitude,
         lon: _position!.longitude,
       );
-      setState(() => _stations = stations);
+      await _cache.saveStations(
+        stations.map((s) => s.toJson()).toList(),
+        _position!.latitude,
+        _position!.longitude,
+      );
+      if (mounted) setState(() => _stations = stations);
     } catch (e) {
-      setState(() => _stationsError = e.toString());
+      if (_stations.isEmpty && mounted) {
+        setState(() => _stationsError = e.toString());
+      }
     } finally {
-      setState(() => _loadingStations = false);
+      if (mounted) setState(() => _loadingStations = false);
     }
   }
 
