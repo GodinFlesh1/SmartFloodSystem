@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/flood_prediction.dart';
 import '../utils/risk_style.dart';
 
-class AiPredictionCard extends StatelessWidget {
+class AiPredictionCard extends StatefulWidget {
   final FloodPrediction? prediction;
   final bool loading;
   final String? error;
@@ -13,6 +13,33 @@ class AiPredictionCard extends StatelessWidget {
     required this.loading,
     this.error,
   });
+
+  @override
+  State<AiPredictionCard> createState() => _AiPredictionCardState();
+}
+
+class _AiPredictionCardState extends State<AiPredictionCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulse;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +65,7 @@ class AiPredictionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Header row
             Row(
               children: [
                 const Icon(Icons.psychology, color: Colors.white70, size: 16),
@@ -52,57 +79,144 @@ class AiPredictionCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                if (loading)
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white54,
+                if (widget.loading)
+                  AnimatedBuilder(
+                    animation: _opacity,
+                    builder: (_, __) => Opacity(
+                      opacity: _opacity.value,
+                      child: const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
               ],
             ),
             const SizedBox(height: 12),
 
-            if (loading && prediction == null)
-              const Text(
-                'Analysing flood conditions…',
-                style: TextStyle(color: Colors.white60, fontSize: 13),
-              )
-            else if (error != null && prediction == null)
-              Row(
-                children: [
-                  const Icon(Icons.cloud_off, color: Colors.white54, size: 16),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Prediction unavailable — model not deployed yet.',
-                      style: TextStyle(color: Colors.white60, fontSize: 12),
-                    ),
-                  ),
-                ],
-              )
-            else if (prediction != null)
-              _buildPrediction(prediction!),
+            // Body
+            if (widget.loading && widget.prediction == null)
+              _buildLoadingState()
+            else if (widget.error != null && widget.prediction == null)
+              _buildErrorState()
+            else if (widget.prediction != null)
+              _buildPrediction(widget.prediction!),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildLoadingState() {
+    return AnimatedBuilder(
+      animation: _opacity,
+      builder: (_, __) => Opacity(
+        opacity: _opacity.value,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.stream, color: Colors.white54, size: 16),
+                const SizedBox(width: 8),
+                const Text(
+                  'Analysing flood conditions…',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _skeletonBar(width: double.infinity, height: 6),
+            const SizedBox(height: 6),
+            _skeletonBar(width: 200, height: 10),
+            const SizedBox(height: 4),
+            _skeletonBar(width: 160, height: 10),
+            const SizedBox(height: 10),
+            Text(
+              'Checking river levels, rainfall and 3-day forecast…',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.55),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _skeletonBar({required double width, required double height}) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.wifi_off_rounded,
+                  color: Colors.white70, size: 16),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Prediction temporarily unavailable',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'We\'re having trouble reaching the prediction service. '
+          'This usually resolves in a few seconds — pull down to refresh.',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.65),
+            fontSize: 12,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildPrediction(FloodPrediction p) {
-    final risk   = RiskStyle.of(p.riskLevel);
-    final pct    = (p.probability * 100).toStringAsFixed(0);
+    final risk = RiskStyle.of(p.riskLevel);
+    final pct  = (p.probability * 100).toStringAsFixed(0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Risk level + probability
+        // Risk badge + probability
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Risk badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
@@ -127,7 +241,6 @@ class AiPredictionCard extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            // Probability
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -165,7 +278,7 @@ class AiPredictionCard extends StatelessWidget {
         ),
         const SizedBox(height: 10),
 
-        // Reason
+        // Reason text
         Text(
           p.reason,
           style: const TextStyle(
@@ -179,8 +292,8 @@ class AiPredictionCard extends StatelessWidget {
         // Confidence + station
         Row(
           children: [
-            Icon(Icons.verified, size: 12,
-                color: Colors.white.withOpacity(0.5)),
+            Icon(Icons.verified,
+                size: 12, color: Colors.white.withOpacity(0.5)),
             const SizedBox(width: 4),
             Text(
               '${p.confidence.toUpperCase()} confidence',

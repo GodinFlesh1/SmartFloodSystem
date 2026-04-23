@@ -568,11 +568,10 @@ class _MapTabState extends State<MapTab> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _legendDot(RiskStyle.of('NORMAL').color, 'Normal'),
-          _legendDot(RiskStyle.of('ELEVATED').color, 'Elevated'),
-          _legendDot(RiskStyle.of('HIGH').color, 'Flood Risk'),
+          _legendDot(RiskStyle.of('MINIMAL').color, 'Minimal'),
+          _legendDot(RiskStyle.of('MODERATE').color, 'Moderate'),
+          _legendDot(RiskStyle.of('HIGH').color, 'High'),
           _legendDot(RiskStyle.of('SEVERE').color, 'Severe'),
-          _legendDot(RiskStyle.of('NO_SENSOR').color, 'No Sensor'),
           _legendDot(const Color(0xFF1565C0), 'You'),
         ],
       ),

@@ -11,7 +11,7 @@
     <!-- Allows FCM to show heads-up (emergency) notifications -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <application
-        android:label="frontend"
+        android:label="FloodSense"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 /// Centralised risk label / colour / description used across the whole app.
 class RiskStyle {
-  final String label;       // e.g. "Normal"
-  final String description; // e.g. "Water is within the typical range"
+  final String label;       // e.g. "Minimal Risk"
+  final String description; // e.g. "Water levels are within the normal range"
   final Color color;
   final IconData icon;
 
@@ -18,39 +18,41 @@ class RiskStyle {
     switch (riskLevel.toUpperCase()) {
       case 'SEVERE':
         return RiskStyle._(
-          label: 'Severe Flood',
-          description: 'Water is critically high — serious flood danger',
+          label: 'Severe Flood Risk',
+          description: 'Critical water levels — immediate flood danger',
           color: Colors.red.shade700,
           icon: Icons.warning_rounded,
         );
       case 'HIGH':
         return RiskStyle._(
-          label: 'Flood Risk',
-          description: 'Water has exceeded the typical high level',
+          label: 'High Flood Risk',
+          description: 'Water has exceeded typical levels — flooding likely',
           color: Colors.orange.shade700,
           icon: Icons.arrow_upward_rounded,
         );
       case 'ELEVATED':
+      case 'MODERATE':
         return RiskStyle._(
-          label: 'Elevated',
-          description: 'Water is above normal but not yet dangerous',
+          label: 'Moderate Risk',
+          description: 'Water levels are rising — monitor conditions closely',
           color: Colors.amber.shade700,
           icon: Icons.trending_up_rounded,
         );
       case 'NORMAL':
+      case 'MINIMAL':
         return RiskStyle._(
-          label: 'Normal',
-          description: 'Water is within the typical range',
+          label: 'Minimal Risk',
+          description: 'Water levels are within the normal range',
           color: Colors.green.shade600,
           icon: Icons.check_circle_outline_rounded,
         );
       case 'NO_SENSOR':
       default:
         return RiskStyle._(
-          label: 'No Sensor',
-          description: 'No recent reading from this station',
-          color: Colors.grey.shade400,
-          icon: Icons.sensors_off_rounded,
+          label: 'Minimal Risk',
+          description: 'No active reading — conditions appear calm',
+          color: Colors.green.shade500,
+          icon: Icons.water_outlined,
         );
     }
   }

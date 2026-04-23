@@ -35,18 +35,14 @@ class DashboardTab extends StatelessWidget {
     this.predictionError,
   });
 
-  // Only stations that have at least one live reading
-  List<Station> get _activeStations =>
-      stations.where((s) => s.riskLevel != 'NO_SENSOR').toList();
-
-  // Overall area risk = worst level among active stations
+  // Overall area risk = worst level among all stations
   String get _areaRisk {
-    if (_activeStations.isEmpty) return 'NO_SENSOR';
-    const order = ['SEVERE', 'HIGH', 'ELEVATED', 'NORMAL', 'NO_SENSOR'];
+    if (stations.isEmpty) return 'MINIMAL';
+    const order = ['SEVERE', 'HIGH', 'ELEVATED', 'MODERATE', 'NORMAL', 'MINIMAL', 'NO_SENSOR'];
     for (final level in order) {
-      if (_activeStations.any((s) => s.riskLevel == level)) return level;
+      if (stations.any((s) => s.riskLevel.toUpperCase() == level)) return level;
     }
-    return 'NORMAL';
+    return 'MINIMAL';
   }
 
   @override
@@ -191,8 +187,6 @@ class DashboardTab extends StatelessWidget {
     }
 
     final risk = RiskStyle.of(_areaRisk);
-    final active = _activeStations.length;
-    final total = stations.length;
 
     return Container(
       width: double.infinity,
@@ -234,15 +228,15 @@ class DashboardTab extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('$active',
+              Text('${stations.length}',
                   style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: risk.color)),
-              Text('of $total',
+              Text('station${stations.length == 1 ? '' : 's'}',
                   style: TextStyle(
                       fontSize: 11, color: Colors.grey.shade500)),
-              Text('reporting',
+              Text('nearby',
                   style: TextStyle(
                       fontSize: 11, color: Colors.grey.shade500)),
             ],
@@ -294,51 +288,29 @@ class DashboardTab extends StatelessWidget {
     if (loadingStations || stations.isEmpty) return const SizedBox.shrink();
     if (country != null && !country!.isUK) return const SizedBox.shrink();
 
-    final active = _activeStations;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Active Stations Nearby',
+            const Text('Monitoring Stations Nearby',
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Colors.black54)),
-            Text('${active.length} reporting',
+            Text('${stations.length} found',
                 style: const TextStyle(
                     fontSize: 12, color: Colors.blueGrey)),
           ],
         ),
         const SizedBox(height: 8),
-        if (active.isEmpty)
-          _infoCard(
-            child: Column(
-              children: [
-                Icon(Icons.sensors_off_rounded,
-                    size: 36, color: Colors.grey.shade300),
-                const SizedBox(height: 10),
-                Text(
-                  'All ${stations.length} nearby stations are currently offline '
-                  'or not reporting. Check the Map tab to see their locations.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 13,
-                      height: 1.5),
-                ),
-              ],
-            ),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: active.length,
-            itemBuilder: (_, i) => StationCard(station: active[i]),
-          ),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: stations.length,
+          itemBuilder: (_, i) => StationCard(station: stations[i]),
+        ),
       ],
     );
   }
