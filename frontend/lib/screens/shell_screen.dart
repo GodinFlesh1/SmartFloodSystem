@@ -88,14 +88,14 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   // ── Initial data fetch ────────────────────────────────────────────────────
 
   Future<void> _fetchAll() async {
+    // Init notifications first — must not be blocked by location
+    try { await NotificationService().init(); } catch (_) {}
     await _getLocation();
     if (_position == null) return;
     await _resolveCountry();
     if (_country != null && _country!.isUK) {
       await _fetchStations();
     }
-    // Init notifications — wrapped so any platform failure doesn't block prediction
-    try { await NotificationService().init(); } catch (_) {}
     // Fetch AI prediction
     await _fetchPrediction();
     // Start streaming live location for foreground risk monitoring

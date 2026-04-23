@@ -68,6 +68,13 @@ class NotificationService {
       ),
       onDidReceiveNotificationResponse: (_) => _flagNavigateToAlerts(),
     );
+
+    // Android 13+: flutter_local_notifications needs its own runtime permission
+    // request separate from FirebaseMessaging.requestPermission()
+    await localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestNotificationsPermission();
   }
 
   // ── Permission ───────────────────────────────────────────────────────────────
