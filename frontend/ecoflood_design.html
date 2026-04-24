@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EcoFlood — App Design Mockup</title>
+<style>
+  /* ── Reset & Base ──────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue:      #1565C0;
+    --blue-dark: #0D47A1;
+    --green:     #388E3C;
+    --amber:     #F59F00;
+    --orange:    #E65100;
+    --red:       #C62828;
+    --bg:        #F0F4F8;
+    --card:      #ffffff;
+    --text:      #1A202C;
+    --muted:     #718096;
+    --border:    #E2E8F0;
+    --radius:    14px;
+    --phone-w:   390px;
+    --phone-h:   844px;
+  }
+
+  body {
+    background: #0a1628;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 20px 80px;
+  }
+
+  /* ── Page heading ─────────────────────────────────────────────── */
+  .page-title {
+    text-align: center;
+    color: #fff;
+    margin-bottom: 48px;
+  }
+  .page-title h1 {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+  }
+  .page-title p { color: #94a3b8; font-size: 15px; }
+
+  .brand { color: var(--blue); }
+
+  /* ── Section label ────────────────────────────────────────────── */
+  .section-label {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  /* ── Phone shell ──────────────────────────────────────────────── */
+  .phone-row {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+    margin-bottom: 64px;
+  }
+
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .phone-label {
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .phone {
+    width: var(--phone-w);
+    height: var(--phone-h);
+    background: #111827;
+    border-radius: 50px;
+    padding: 14px;
+    box-shadow:
+      0 0 0 2px #1e293b,
+      0 0 0 6px #0f172a,
+      0 40px 80px rgba(0,0,0,0.7);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .phone-inner {
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    border-radius: 38px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* Dynamic island */
+  .dynamic-island {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 36px;
+    background: #111827;
+    border-radius: 20px;
+    z-index: 100;
+  }
+
+  /* ── Status bar ───────────────────────────────────────────────── */
+  .status-bar {
+    height: 52px;
+    background: transparent;
+    display: flex;
+    align-items: flex-end;
+    padding: 0 24px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    flex-shrink: 0;
+    z-index: 10;
+    position: relative;
+  }
+  .status-bar.white { color: #fff; }
+  .status-bar .time { flex: 1; }
+  .status-bar .icons { display: flex; gap: 6px; align-items: center; }
+  .battery {
+    width: 22px; height: 11px; border: 1.5px solid currentColor;
+    border-radius: 3px; position: relative;
+  }
+  .battery::after {
+    content: ''; position: absolute; right: -5px; top: 50%;
+    transform: translateY(-50%); width: 3px; height: 6px;
+    background: currentColor; border-radius: 0 2px 2px 0;
+  }
+  .battery-fill {
+    position: absolute; left: 2px; top: 2px; bottom: 2px;
+    width: 70%; background: currentColor; border-radius: 1px;
+  }
+  .signal { display: flex; align-items: flex-end; gap: 2px; height: 11px; }
+  .signal span {
+    width: 3px; background: currentColor; border-radius: 1px;
+    display: block;
+  }
+  .signal span:nth-child(1) { height: 30%; }
+  .signal span:nth-child(2) { height: 55%; }
+  .signal span:nth-child(3) { height: 80%; }
+  .signal span:nth-child(4) { height: 100%; }
+
+  /* ── App bar ──────────────────────────────────────────────────── */
+  .app-bar {
+    background: var(--card);
+    padding: 12px 20px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .app-bar.gradient {
+    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
+    border-bottom: none;
+  }
+  .app-bar-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .app-bar.gradient .app-bar-title { color: #fff; }
+  .app-icon-small {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, #29B6F6, var(--blue));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .app-bar-action {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  /* ── Scrollable body ──────────────────────────────────────────── */
+  .screen-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scrollbar-width: none;
+  }
+  .screen-body::-webkit-scrollbar { display: none; }
+
+  /* ── Cards ────────────────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+
+  /* Location card */
+  .location-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .loc-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: rgba(21,101,192,0.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .loc-info { flex: 1; }
+  .loc-title {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pill {
+    font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 20px;
+  }
+  .pill.green { background: rgba(56,142,60,0.12); color: var(--green); }
+  .pill.orange { background: rgba(230,81,0,0.12); color: var(--orange); }
+  .loc-coords { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .loc-acc { font-size: 10px; color: #a0aec0; }
+
+  /* AI Prediction card */
+  .ai-card {
+    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: 0 4px 12px rgba(21,101,192,0.35);
+    color: #fff;
+  }
+  .ai-header {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 14px;
+  }
+  .ai-header-text { font-size: 12px; color: rgba(255,255,255,0.7); font-weight: 500; flex: 1; }
+  .ai-pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #4ade80; box-shadow: 0 0 6px #4ade80;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+  .ai-body { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+  .ai-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
+  }
+  .ai-badge.moderate {
+    background: rgba(245,159,0,0.25);
+    border: 1px solid rgba(245,159,0,0.6);
+    color: var(--amber);
+  }
+  .ai-badge.minimal {
+    background: rgba(56,142,60,0.25);
+    border: 1px solid rgba(56,142,60,0.6);
+    color: #4ade80;
+  }
+  .ai-prob { text-align: right; }
+  .ai-prob-num { font-size: 30px; font-weight: 800; line-height: 1; }
+  .ai-prob-label { font-size: 10px; color: rgba(255,255,255,0.55); }
+  .ai-bar-wrap { margin: 10px 0; }
+  .ai-bar-bg {
+    height: 6px; background: rgba(255,255,255,0.15);
+    border-radius: 3px; overflow: hidden;
+  }
+  .ai-bar-fill { height: 100%; border-radius: 3px; }
+  .ai-reason { font-size: 13px; color: #fff; line-height: 1.5; margin: 8px 0; }
+  .ai-footer {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; color: rgba(255,255,255,0.45);
+  }
+
+  /* Area Risk card */
+  .risk-card {
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .risk-card.minimal { background: rgba(56,142,60,0.08); border: 1.5px solid rgba(56,142,60,0.3); }
+  .risk-card.high    { background: rgba(230,81,0,0.08); border: 1.5px solid rgba(230,81,0,0.3); }
+  .risk-card.severe  { background: rgba(198,40,40,0.08); border: 1.5px solid rgba(198,40,40,0.3); }
+  .risk-icon-wrap {
+    width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; flex-shrink: 0;
+  }
+  .risk-icon-wrap.minimal { background: rgba(56,142,60,0.15); }
+  .risk-icon-wrap.high    { background: rgba(230,81,0,0.15); }
+  .risk-icon-wrap.severe  { background: rgba(198,40,40,0.15); }
+  .risk-label-sm { font-size: 12px; color: var(--muted); }
+  .risk-title { font-size: 20px; font-weight: 800; }
+  .risk-title.minimal { color: var(--green); }
+  .risk-title.high    { color: var(--orange); }
+  .risk-title.severe  { color: var(--red); }
+  .risk-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .risk-count { text-align: right; margin-left: auto; }
+  .risk-count-num { font-size: 24px; font-weight: 800; }
+  .risk-count-num.minimal { color: var(--green); }
+  .risk-count-num.high    { color: var(--orange); }
+  .risk-count-num.severe  { color: var(--red); }
+  .risk-count-label { font-size: 11px; color: #a0aec0; }
+
+  /* Section header */
+  .sec-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px;
+  }
+  .sec-title { font-size: 14px; font-weight: 600; color: #4a5568; }
+  .sec-count { font-size: 12px; color: #718096; }
+
+  /* Station card */
+  .station-card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+  }
+  .station-dot {
+    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  }
+  .station-dot.minimal { background: var(--green); }
+  .station-dot.moderate { background: var(--amber); }
+  .station-dot.high { background: var(--orange); }
+  .station-dot.severe { background: var(--red); }
+  .station-info { flex: 1; min-width: 0; }
+  .station-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .station-sub { font-size: 11px; color: var(--muted); }
+  .station-reading { text-align: right; }
+  .station-reading-val { font-size: 14px; font-weight: 700; color: var(--blue); }
+  .station-reading-unit { font-size: 10px; color: var(--muted); }
+
+  /* ── Bottom nav ───────────────────────────────────────────────── */
+  .bottom-nav {
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-shrink: 0;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0 20px;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .nav-item.active { color: var(--blue); }
+  .nav-icon { font-size: 20px; }
+
+  /* ── Map screen ───────────────────────────────────────────────── */
+  .map-area {
+    flex: 1;
+    background: #e8f0fe;
+    position: relative;
+    overflow: hidden;
+  }
+  .map-bg {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(rgba(232,240,254,0.3), rgba(232,240,254,0.3)),
+      repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(21,101,192,0.04) 40px, rgba(21,101,192,0.04) 41px),
+      repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(21,101,192,0.04) 40px, rgba(21,101,192,0.04) 41px);
+  }
+  /* Roads */
+  .road {
+    position: absolute;
+    background: rgba(255,255,255,0.7);
+  }
+  .road.h { height: 4px; left: 0; right: 0; }
+  .road.v { width: 4px; top: 0; bottom: 0; }
+  .road.thick.h { height: 7px; background: rgba(255,255,255,0.9); }
+  .road.thick.v { width: 7px; background: rgba(255,255,255,0.9); }
+
+  /* River */
+  .river {
+    position: absolute;
+    background: rgba(21,101,192,0.3);
+    border-radius: 50%;
+  }
+
+  /* Map markers */
+  .map-marker {
+    position: absolute;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    border: 2px solid rgba(255,255,255,0.9);
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .map-marker.you {
+    background: var(--blue);
+    width: 40px; height: 40px;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 4px rgba(21,101,192,0.2), 0 2px 8px rgba(0,0,0,0.3);
+    z-index: 10;
+  }
+  .map-marker.minimal { background: var(--green); }
+  .map-marker.moderate { background: var(--amber); }
+  .map-marker.high { background: var(--orange); box-shadow: 0 0 12px rgba(230,81,0,0.5), 0 2px 8px rgba(0,0,0,0.2); }
+  .map-marker.severe { background: var(--red); box-shadow: 0 0 16px rgba(198,40,40,0.6), 0 2px 8px rgba(0,0,0,0.2); }
+
+  /* Heat circles */
+  .heat-circle {
+    position: absolute;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  /* Map controls */
+  .map-controls {
+    position: absolute;
+    top: 12px; right: 12px;
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 20;
+  }
+  .map-btn {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--blue);
+    display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    cursor: pointer;
+  }
+  .map-btn.active { background: var(--blue); color: #fff; }
+
+  /* Safe route button */
+  .safe-route-btn {
+    position: absolute;
+    bottom: 12px; left: 50%; transform: translateX(-50%);
+    background: #B71C1C;
+    color: #fff;
+    border-radius: 30px;
+    padding: 12px 20px;
+    font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+    white-space: nowrap;
+    z-index: 20;
+  }
+
+  /* Map legend */
+  .map-legend {
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .legend-dot {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--text);
+  }
+  .legend-dot span {
+    width: 11px; height: 11px; border-radius: 50;
+    display: inline-block; border-radius: 50%;
+  }
+
+  /* Station detail panel */
+  .detail-panel {
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    padding: 0;
+    flex-shrink: 0;
+  }
+  .detail-header {
+    padding: 14px 16px 8px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .detail-info { flex: 1; min-width: 0; }
+  .detail-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .detail-sub { font-size: 12px; color: var(--muted); }
+  .detail-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 10px; border-radius: 8px; font-size: 12px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .detail-badge.high { background: rgba(230,81,0,0.12); color: var(--orange); }
+  .detail-badge.minimal { background: rgba(56,142,60,0.12); color: var(--green); }
+  .detail-close {
+    font-size: 18px; color: var(--muted); cursor: pointer; flex-shrink: 0;
+  }
+  .detail-desc { padding: 0 16px 8px; font-size: 12px; color: #a0aec0; }
+  .detail-divider { height: 1px; background: var(--border); }
+  .detail-readings { padding: 12px 16px; }
+  .level-bar-wrap { margin-bottom: 12px; }
+  .level-bar-header {
+    display: flex; justify-content: space-between; margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .level-bar-title { font-weight: 600; color: #4a5568; }
+  .level-bar-val { font-weight: 700; }
+  .level-bar-bg {
+    height: 10px; background: #e2e8f0; border-radius: 5px;
+    position: relative; overflow: hidden;
+  }
+  .level-bar-normal {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: #bbf7d0; border-radius: 5px;
+  }
+  .level-bar-fill {
+    position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px;
+  }
+  .level-bar-footer {
+    display: flex; justify-content: space-between; margin-top: 4px;
+    font-size: 10px; color: #a0aec0;
+  }
+  .chips-wrap { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip {
+    background: #F0F4F8;
+    border: 1px solid #dbe4ef;
+    border-radius: 10px;
+    padding: 10px 12px;
+    min-width: 100px;
+  }
+  .chip-label { font-size: 11px; color: var(--muted); font-weight: 500; }
+  .chip-val { font-size: 15px; font-weight: 700; color: var(--blue); margin-top: 2px; }
+
+  /* ── App Icon screen ──────────────────────────────────────────── */
+  .splash-screen {
+    flex: 1;
+    background: linear-gradient(160deg, #0D47A1 0%, #1565C0 40%, #29B6F6 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .splash-circles {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .splash-circle {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .splash-icon {
+    width: 100px; height: 100px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 26px;
+    backdrop-filter: blur(10px);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 52px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3);
+    position: relative;
+    z-index: 1;
+  }
+  .splash-title {
+    font-size: 32px; font-weight: 900;
+    color: #fff; letter-spacing: -1px;
+    position: relative; z-index: 1;
+  }
+  .splash-subtitle {
+    font-size: 14px; color: rgba(255,255,255,0.7);
+    position: relative; z-index: 1;
+    letter-spacing: 0.5px;
+  }
+  .splash-loader {
+    width: 180px; height: 3px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px; overflow: hidden;
+    position: relative; z-index: 1;
+    margin-top: 12px;
+  }
+  .splash-loader-fill {
+    height: 100%; width: 65%; background: #fff;
+    border-radius: 2px;
+    animation: load 2s ease-in-out infinite;
+  }
+  @keyframes load { 0%{width:0%} 60%{width:65%} 100%{width:65%} }
+
+  /* ── Safe Route screen ────────────────────────────────────────── */
+  .safe-bg {
+    flex: 1;
+    background: #f8f9fa;
+    position: relative;
+    overflow: hidden;
+  }
+  .safe-map-bg {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(rgba(240,244,248,0.4), rgba(240,244,248,0.4)),
+      repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(21,101,192,0.04) 40px, rgba(21,101,192,0.04) 41px),
+      repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(21,101,192,0.04) 40px, rgba(21,101,192,0.04) 41px);
+  }
+  .route-path {
+    position: absolute;
+    border: 3px dashed var(--green);
+    border-radius: 50%;
+    opacity: 0.6;
+    transform: rotate(-30deg);
+  }
+  .safe-panel {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-radius: 20px 20px 0 0;
+    padding: 16px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+  }
+  .safe-panel-handle {
+    width: 36px; height: 4px; background: #e2e8f0;
+    border-radius: 2px; margin: 0 auto 14px;
+  }
+  .safe-title {
+    font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 4px;
+  }
+  .safe-subtitle { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+  .safe-step {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .safe-step:last-child { border-bottom: none; }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--blue); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
+  .step-text { font-size: 13px; color: var(--text); }
+  .step-dist { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ── App icon card ────────────────────────────────────────────── */
+  .icon-showcase {
+    display: flex; justify-content: center; gap: 48px;
+    flex-wrap: wrap; margin-bottom: 64px;
+  }
+  .icon-card {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    color: #94a3b8; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+  }
+  .app-icon-lg {
+    width: 120px; height: 120px; border-radius: 27px;
+    background: linear-gradient(145deg, #29B6F6 0%, #1565C0 50%, #0D47A1 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 60px;
+    box-shadow: 0 20px 60px rgba(21,101,192,0.5);
+    position: relative; overflow: hidden;
+  }
+  .app-icon-lg::before {
+    content: '';
+    position: absolute; top: -30%; left: -30%;
+    width: 70%; height: 70%;
+    background: rgba(255,255,255,0.12);
+    border-radius: 50%;
+  }
+  .app-icon-sm {
+    width: 60px; height: 60px; border-radius: 14px;
+    background: linear-gradient(145deg, #29B6F6 0%, #1565C0 50%, #0D47A1 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px;
+    box-shadow: 0 8px 24px rgba(21,101,192,0.4);
+    position: relative; overflow: hidden;
+  }
+  .app-icon-sm::before {
+    content: '';
+    position: absolute; top: -20%; left: -20%;
+    width: 60%; height: 60%;
+    background: rgba(255,255,255,0.12);
+    border-radius: 50%;
+  }
+  .app-icon-xs {
+    width: 36px; height: 36px; border-radius: 9px;
+    background: linear-gradient(145deg, #29B6F6 0%, #1565C0 50%, #0D47A1 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 4px 12px rgba(21,101,192,0.35);
+  }
+
+  /* ── Colour palette ───────────────────────────────────────────── */
+  .palette {
+    display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 64px;
+  }
+  .swatch-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .swatch {
+    width: 64px; height: 64px; border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  }
+  .swatch-label { font-size: 11px; color: #94a3b8; font-weight: 600; text-align: center; }
+  .swatch-hex { font-size: 10px; color: #64748b; font-family: monospace; }
+
+  /* ── Typography showcase ──────────────────────────────────────── */
+  .type-showcase {
+    max-width: 600px;
+    margin: 0 auto 64px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 28px;
+  }
+  .type-row { margin-bottom: 16px; }
+  .type-row:last-child { margin-bottom: 0; }
+  .type-label { font-size: 10px; color: #475569; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  .type-sample { color: #fff; }
+  .t-display { font-size: 28px; font-weight: 900; letter-spacing: -1px; }
+  .t-title { font-size: 20px; font-weight: 800; }
+  .t-subtitle { font-size: 15px; font-weight: 600; }
+  .t-body { font-size: 13px; font-weight: 400; line-height: 1.5; color: #cbd5e1; }
+  .t-caption { font-size: 11px; font-weight: 500; color: #64748b; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  PAGE TITLE                                                    -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="page-title">
+  <h1>Eco<span class="brand">Flood</span> · Design System</h1>
+  <p>UK Flood Monitoring & AI Prediction — Mobile App Mockup</p>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  APP ICON                                                      -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="section-label">App Icon</div>
+<div class="icon-showcase">
+  <div class="icon-card">
+    <div class="app-icon-lg">🌊</div>
+    1024 × 1024
+  </div>
+  <div class="icon-card">
+    <div class="app-icon-sm">🌊</div>
+    180 × 180
+  </div>
+  <div class="icon-card">
+    <div class="app-icon-xs">🌊</div>
+    72 × 72
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  COLOUR PALETTE                                                -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="section-label">Colour Palette</div>
+<div class="palette">
+  <div class="swatch-wrap">
+    <div class="swatch" style="background:#1565C0"></div>
+    <div class="swatch-label">Primary Blue</div>
+    <div class="swatch-hex">#1565C0</div>
+  </div>
+  <div class="swatch-wrap">
+    <div class="swatch" style="background:#0D47A1"></div>
+    <div class="swatch-label">Deep Blue</div>
+    <div class="swatch-hex">#0D47A1</div>
+  </div>
+  <div class="swatch-wrap">
+    <div class="swatch" style="background:#29B6F6"></div>
+    <div class="swatch-label">Sky Blue</div>
+    <div class="swatch-hex">#29B6F6</div>
+  </div>
+  <div class="swatch-wrap">
+    <div class="swatch" style="background:#388E3C"></div>
+    <div class="swatch-label">Minimal Risk</div>
+    <div class="swatch-hex">#388E3C</div>
+  </div>
+  <div class="swatch-wrap">
+    <div class="swatch" style="background:#F59F00"></div>
+    <div class="swatch-label">Moderate Risk</div>
+    <div class="swatch-hex">#F59F00</div>
+  </div>
+  <div class="swatch-wrap">
+    <div class="swatch" style="background:#E65100"></div>
+    <div class="swatch-label">High Risk</div>
+    <div class="swatch-hex">#E65100</div>
+  </div>
+  <div class="swatch-wrap">
+    <div class="swatch" style="background:#C62828"></div>
+    <div class="swatch-label">Severe Risk</div>
+    <div class="swatch-hex">#C62828</div>
+  </div>
+  <div class="swatch-wrap">
+    <div class="swatch" style="background:#F0F4F8"></div>
+    <div class="swatch-label">Background</div>
+    <div class="swatch-hex">#F0F4F8</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  TYPOGRAPHY                                                    -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="section-label">Typography · Segoe UI / System UI</div>
+<div class="type-showcase">
+  <div class="type-row">
+    <div class="type-label">Display / App Title</div>
+    <div class="type-sample t-display">EcoFlood</div>
+  </div>
+  <div class="type-row">
+    <div class="type-label">Section Title</div>
+    <div class="type-sample t-title">Severe Flood Risk</div>
+  </div>
+  <div class="type-row">
+    <div class="type-label">Card Heading</div>
+    <div class="type-sample t-subtitle">Monitoring Stations Nearby</div>
+  </div>
+  <div class="type-row">
+    <div class="type-label">Body Text</div>
+    <div class="type-sample t-body">River Thames at Richmond is showing elevated water levels. Heavy rainfall forecast over the next 48 hours may increase flood risk.</div>
+  </div>
+  <div class="type-row">
+    <div class="type-label">Caption / Label</div>
+    <div class="type-sample t-caption">51.46789, -0.30156 · Accuracy ±12 m</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  SCREENS                                                       -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="section-label">Screen Mockups</div>
+<div class="phone-row">
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  SCREEN 1 · Splash                         -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">Splash</div>
+    <div class="phone">
+      <div class="dynamic-island"></div>
+      <div class="phone-inner">
+        <div class="splash-screen">
+          <div class="splash-circles">
+            <div class="splash-circle" style="width:500px;height:500px;top:-100px;left:-100px;"></div>
+            <div class="splash-circle" style="width:300px;height:300px;top:200px;right:-80px;"></div>
+            <div class="splash-circle" style="width:200px;height:200px;bottom:-60px;left:50px;"></div>
+          </div>
+          <div class="splash-icon">🌊</div>
+          <div>
+            <div class="splash-title">EcoFlood</div>
+            <div class="splash-subtitle">Real-time UK Flood Intelligence</div>
+          </div>
+          <div class="splash-loader">
+            <div class="splash-loader-fill"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  SCREEN 2 · Dashboard (Minimal state)      -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">Dashboard · Low Risk</div>
+    <div class="phone">
+      <div class="dynamic-island"></div>
+      <div class="phone-inner">
+        <div class="status-bar"><span class="time">9:41</span><div class="icons"><div class="signal"><span></span><span></span><span></span><span></span></div><div class="battery"><div class="battery-fill"></div></div></div></div>
+        <div class="app-bar">
+          <div class="app-bar-title"><div class="app-icon-small">🌊</div>EcoFlood</div>
+          <div class="app-bar-action">🔔</div>
+        </div>
+        <div class="screen-body">
+          <!-- Location -->
+          <div class="card">
+            <div class="location-card">
+              <div class="loc-icon">📍</div>
+              <div class="loc-info">
+                <div class="loc-title">Your Location <span class="pill green">United Kingdom</span></div>
+                <div class="loc-coords">51.46789, -0.30156</div>
+                <div class="loc-acc">Accuracy ±12 m</div>
+              </div>
+            </div>
+          </div>
+          <!-- AI Prediction -->
+          <div class="ai-card">
+            <div class="ai-header">
+              <span>🧠</span>
+              <span class="ai-header-text">AI Flood Prediction · Next 3 Days</span>
+              <div class="ai-pulse"></div>
+            </div>
+            <div class="ai-body">
+              <div class="ai-badge minimal">✓ Minimal Risk</div>
+              <div class="ai-prob">
+                <div class="ai-prob-num">12%</div>
+                <div class="ai-prob-label">flood probability</div>
+              </div>
+            </div>
+            <div class="ai-bar-wrap">
+              <div class="ai-bar-bg">
+                <div class="ai-bar-fill" style="width:12%;background:#4ade80;"></div>
+              </div>
+            </div>
+            <div class="ai-reason">River levels are within normal range. No significant rainfall forecast for the next 72 hours.</div>
+            <div class="ai-footer">✔ HIGH confidence · Thames at Richmond</div>
+          </div>
+          <!-- Risk card -->
+          <div class="risk-card minimal">
+            <div class="risk-icon-wrap minimal">✅</div>
+            <div>
+              <div class="risk-label-sm">Area Flood Risk</div>
+              <div class="risk-title minimal">Minimal Risk</div>
+              <div class="risk-desc">Water levels are within the normal range</div>
+            </div>
+            <div class="risk-count">
+              <div class="risk-count-num minimal">4</div>
+              <div class="risk-count-label">stations</div>
+              <div class="risk-count-label">nearby</div>
+            </div>
+          </div>
+          <!-- Stations -->
+          <div>
+            <div class="sec-header">
+              <span class="sec-title">Monitoring Stations Nearby</span>
+              <span class="sec-count">4 found</span>
+            </div>
+            <div class="station-card">
+              <div class="station-dot minimal"></div>
+              <div class="station-info">
+                <div class="station-name">Richmond</div>
+                <div class="station-sub">River Thames · Richmond</div>
+              </div>
+              <div class="station-reading">
+                <div class="station-reading-val">1.432 m</div>
+                <div class="station-reading-unit">level</div>
+              </div>
+            </div>
+            <div class="station-card">
+              <div class="station-dot minimal"></div>
+              <div class="station-info">
+                <div class="station-name">Teddington</div>
+                <div class="station-sub">River Thames · Kingston</div>
+              </div>
+              <div class="station-reading">
+                <div class="station-reading-val">1.187 m</div>
+                <div class="station-reading-unit">level</div>
+              </div>
+            </div>
+            <div class="station-card">
+              <div class="station-dot moderate"></div>
+              <div class="station-info">
+                <div class="station-name">Kingston</div>
+                <div class="station-sub">River Thames · Kingston</div>
+              </div>
+              <div class="station-reading">
+                <div class="station-reading-val">2.043 m</div>
+                <div class="station-reading-unit">level</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active"><span class="nav-icon">🏠</span>Dashboard</div>
+          <div class="nav-item"><span class="nav-icon">🗺️</span>Map</div>
+          <div class="nav-item"><span class="nav-icon">⚠️</span>Alerts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  SCREEN 3 · Dashboard (High risk state)    -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">Dashboard · High Risk</div>
+    <div class="phone">
+      <div class="dynamic-island"></div>
+      <div class="phone-inner">
+        <div class="status-bar"><span class="time">9:41</span><div class="icons"><div class="signal"><span></span><span></span><span></span><span></span></div><div class="battery"><div class="battery-fill"></div></div></div></div>
+        <div class="app-bar">
+          <div class="app-bar-title"><div class="app-icon-small">🌊</div>EcoFlood</div>
+          <div class="app-bar-action">🔔</div>
+        </div>
+        <div class="screen-body">
+          <!-- Location -->
+          <div class="card">
+            <div class="location-card">
+              <div class="loc-icon">📍</div>
+              <div class="loc-info">
+                <div class="loc-title">Your Location <span class="pill green">United Kingdom</span></div>
+                <div class="loc-coords">51.46789, -0.30156</div>
+                <div class="loc-acc">Accuracy ±12 m</div>
+              </div>
+            </div>
+          </div>
+          <!-- AI Prediction high risk -->
+          <div class="ai-card">
+            <div class="ai-header">
+              <span>🧠</span>
+              <span class="ai-header-text">AI Flood Prediction · Next 3 Days</span>
+              <div class="ai-pulse"></div>
+            </div>
+            <div class="ai-body">
+              <div class="ai-badge moderate">⬆ High Risk</div>
+              <div class="ai-prob">
+                <div class="ai-prob-num">78%</div>
+                <div class="ai-prob-label">flood probability</div>
+              </div>
+            </div>
+            <div class="ai-bar-wrap">
+              <div class="ai-bar-bg">
+                <div class="ai-bar-fill" style="width:78%;background:#E65100;"></div>
+              </div>
+            </div>
+            <div class="ai-reason">Heavy rainfall over 48 hrs has pushed Thames above typical range. Flood risk is high — avoid low-lying areas near the river.</div>
+            <div class="ai-footer">✔ HIGH confidence · Thames at Richmond</div>
+          </div>
+          <!-- Risk card high -->
+          <div class="risk-card high">
+            <div class="risk-icon-wrap high">⬆️</div>
+            <div>
+              <div class="risk-label-sm">Area Flood Risk</div>
+              <div class="risk-title high">High Flood Risk</div>
+              <div class="risk-desc">Water has exceeded typical levels — flooding likely</div>
+            </div>
+            <div class="risk-count">
+              <div class="risk-count-num high">6</div>
+              <div class="risk-count-label">stations</div>
+              <div class="risk-count-label">nearby</div>
+            </div>
+          </div>
+          <!-- Stations -->
+          <div>
+            <div class="sec-header">
+              <span class="sec-title">Monitoring Stations Nearby</span>
+              <span class="sec-count">6 found</span>
+            </div>
+            <div class="station-card" style="border-left: 3px solid #C62828;">
+              <div class="station-dot severe"></div>
+              <div class="station-info">
+                <div class="station-name">Richmond</div>
+                <div class="station-sub">River Thames · Richmond</div>
+              </div>
+              <div class="station-reading">
+                <div class="station-reading-val" style="color:#C62828">3.812 m</div>
+                <div class="station-reading-unit">level</div>
+              </div>
+            </div>
+            <div class="station-card" style="border-left: 3px solid #E65100;">
+              <div class="station-dot high"></div>
+              <div class="station-info">
+                <div class="station-name">Teddington</div>
+                <div class="station-sub">River Thames · Kingston</div>
+              </div>
+              <div class="station-reading">
+                <div class="station-reading-val" style="color:#E65100">2.941 m</div>
+                <div class="station-reading-unit">level</div>
+              </div>
+            </div>
+            <div class="station-card">
+              <div class="station-dot moderate"></div>
+              <div class="station-info">
+                <div class="station-name">Kingston</div>
+                <div class="station-sub">River Thames · Kingston</div>
+              </div>
+              <div class="station-reading">
+                <div class="station-reading-val" style="color:#F59F00">2.103 m</div>
+                <div class="station-reading-unit">level</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active"><span class="nav-icon">🏠</span>Dashboard</div>
+          <div class="nav-item"><span class="nav-icon">🗺️</span>Map</div>
+          <div class="nav-item"><span class="nav-icon">⚠️</span>Alerts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /phone-row 1 -->
+
+
+<!-- ─── Row 2 ───────────────────────────────────────────────────── -->
+<div class="phone-row">
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  SCREEN 4 · Map view (normal)              -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">Map View</div>
+    <div class="phone">
+      <div class="dynamic-island"></div>
+      <div class="phone-inner">
+        <div class="status-bar"><span class="time">9:41</span><div class="icons"><div class="signal"><span></span><span></span><span></span><span></span></div><div class="battery"><div class="battery-fill"></div></div></div></div>
+        <div class="map-area">
+          <div class="map-bg"></div>
+          <!-- Roads -->
+          <div class="road h thick" style="top:40%"></div>
+          <div class="road h" style="top:25%"></div>
+          <div class="road h" style="top:60%"></div>
+          <div class="road h" style="top:75%"></div>
+          <div class="road v thick" style="left:35%"></div>
+          <div class="road v" style="left:60%"></div>
+          <div class="road v" style="left:20%"></div>
+          <div class="road v" style="left:78%"></div>
+          <!-- River -->
+          <div class="river" style="width:600px;height:80px;top:38%;left:-60px;opacity:0.4;transform:rotate(-5deg);"></div>
+          <!-- Markers -->
+          <div class="map-marker you" style="left:50%;top:48%">👤</div>
+          <div class="map-marker minimal" style="left:25%;top:32%">💧</div>
+          <div class="map-marker minimal" style="left:72%;top:55%">💧</div>
+          <div class="map-marker moderate" style="left:60%;top:28%">💧</div>
+          <div class="map-marker minimal" style="left:80%;top:70%">💧</div>
+          <!-- Controls -->
+          <div class="map-controls">
+            <div class="map-btn">≡ Heatmap</div>
+            <div class="map-btn" style="justify-content:center;padding:8px;font-size:16px;">+</div>
+            <div class="map-btn" style="justify-content:center;padding:8px;font-size:16px;">−</div>
+          </div>
+        </div>
+        <!-- Legend -->
+        <div class="map-legend">
+          <div class="legend-dot"><span style="background:#388E3C"></span>Minimal</div>
+          <div class="legend-dot"><span style="background:#F59F00"></span>Moderate</div>
+          <div class="legend-dot"><span style="background:#E65100"></span>High</div>
+          <div class="legend-dot"><span style="background:#C62828"></span>Severe</div>
+          <div class="legend-dot"><span style="background:#1565C0"></span>You</div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item"><span class="nav-icon">🏠</span>Dashboard</div>
+          <div class="nav-item active"><span class="nav-icon">🗺️</span>Map</div>
+          <div class="nav-item"><span class="nav-icon">⚠️</span>Alerts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  SCREEN 5 · Map + Station detail panel     -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">Map · Station Detail</div>
+    <div class="phone">
+      <div class="dynamic-island"></div>
+      <div class="phone-inner">
+        <div class="status-bar"><span class="time">9:41</span><div class="icons"><div class="signal"><span></span><span></span><span></span><span></span></div><div class="battery"><div class="battery-fill"></div></div></div></div>
+        <div class="map-area" style="flex:none;height:280px;">
+          <div class="map-bg"></div>
+          <div class="road h thick" style="top:50%"></div>
+          <div class="road v thick" style="left:35%"></div>
+          <div class="road v" style="left:65%"></div>
+          <div class="river" style="width:600px;height:80px;top:44%;left:-60px;opacity:0.4;transform:rotate(-5deg);"></div>
+          <div class="map-marker you" style="left:50%;top:55%">👤</div>
+          <div class="map-marker high" style="left:30%;top:38%;width:44px;height:44px;border-width:3px;font-size:18px;">💧</div>
+          <div class="map-marker minimal" style="left:72%;top:60%">💧</div>
+          <div class="map-controls">
+            <div class="map-btn">≡ Heatmap</div>
+          </div>
+        </div>
+        <!-- Detail panel -->
+        <div class="detail-panel">
+          <div class="detail-header">
+            <div class="detail-info">
+              <div class="detail-name">Richmond</div>
+              <div class="detail-sub">River Thames · Richmond</div>
+            </div>
+            <div class="detail-badge high">⬆ High Risk</div>
+            <div class="detail-close">✕</div>
+          </div>
+          <div class="detail-desc">Water has exceeded typical levels — flooding likely</div>
+          <div class="detail-divider"></div>
+          <div class="detail-readings">
+            <div class="level-bar-wrap">
+              <div class="level-bar-header">
+                <span class="level-bar-title">Water Level</span>
+                <span class="level-bar-val" style="color:#E65100">3.812 m</span>
+              </div>
+              <div class="level-bar-bg">
+                <div class="level-bar-normal" style="width:55%"></div>
+                <div class="level-bar-fill" style="width:73%;background:#E65100"></div>
+              </div>
+              <div class="level-bar-footer">
+                <span>Normal up to 2.80 m</span>
+                <span style="color:#E65100;font-weight:700">High Risk</span>
+              </div>
+            </div>
+            <div class="chips-wrap">
+              <div class="chip">
+                <div class="chip-label">Stage</div>
+                <div class="chip-val">3.812 m</div>
+              </div>
+              <div class="chip">
+                <div class="chip-label">Flow</div>
+                <div class="chip-val">142.3 m³/s</div>
+              </div>
+              <div class="chip">
+                <div class="chip-label">Downstream</div>
+                <div class="chip-val">3.640 m</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item"><span class="nav-icon">🏠</span>Dashboard</div>
+          <div class="nav-item active"><span class="nav-icon">🗺️</span>Map</div>
+          <div class="nav-item"><span class="nav-icon">⚠️</span>Alerts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  SCREEN 6 · Map heatmap + Safe Route       -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">Map · Heatmap + Safe Route</div>
+    <div class="phone">
+      <div class="dynamic-island"></div>
+      <div class="phone-inner">
+        <div class="status-bar"><span class="time">9:41</span><div class="icons"><div class="signal"><span></span><span></span><span></span><span></span></div><div class="battery"><div class="battery-fill"></div></div></div></div>
+        <div class="map-area">
+          <div class="map-bg"></div>
+          <div class="road h thick" style="top:45%"></div>
+          <div class="road h" style="top:65%"></div>
+          <div class="road v thick" style="left:35%"></div>
+          <div class="road v" style="left:62%"></div>
+          <div class="river" style="width:600px;height:80px;top:42%;left:-60px;opacity:0.4;transform:rotate(-5deg);"></div>
+          <!-- Heat circles -->
+          <div class="heat-circle" style="left:28%;top:42%;width:160px;height:160px;background:rgba(198,40,40,0.35);"></div>
+          <div class="heat-circle" style="left:28%;top:42%;width:100px;height:100px;background:rgba(198,40,40,0.25);"></div>
+          <div class="heat-circle" style="left:65%;top:30%;width:120px;height:120px;background:rgba(230,81,0,0.28);"></div>
+          <div class="heat-circle" style="left:50%;top:60%;width:90px;height:90px;background:rgba(56,142,60,0.2);"></div>
+          <!-- Markers on top -->
+          <div class="map-marker you" style="left:50%;top:52%">👤</div>
+          <div class="map-marker severe" style="left:28%;top:42%">💧</div>
+          <div class="map-marker high" style="left:65%;top:30%">💧</div>
+          <div class="map-marker minimal" style="left:50%;top:70%">💧</div>
+          <div class="map-controls">
+            <div class="map-btn active">≡ Heatmap ON</div>
+          </div>
+          <!-- Safe route button -->
+          <div class="safe-route-btn">🚨 Find Safe Route</div>
+        </div>
+        <div class="map-legend">
+          <div class="legend-dot"><span style="background:#388E3C"></span>Minimal</div>
+          <div class="legend-dot"><span style="background:#F59F00"></span>Moderate</div>
+          <div class="legend-dot"><span style="background:#E65100"></span>High</div>
+          <div class="legend-dot"><span style="background:#C62828"></span>Severe</div>
+          <div class="legend-dot"><span style="background:#1565C0"></span>You</div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item"><span class="nav-icon">🏠</span>Dashboard</div>
+          <div class="nav-item active"><span class="nav-icon">🗺️</span>Map</div>
+          <div class="nav-item"><span class="nav-icon">⚠️</span>Alerts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /phone-row 2 -->
+
+
+<!-- ─── Row 3 ───────────────────────────────────────────────────── -->
+<div class="phone-row">
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  SCREEN 7 · Safe Route                     -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">Safe Route Screen</div>
+    <div class="phone">
+      <div class="dynamic-island"></div>
+      <div class="phone-inner">
+        <div class="status-bar"><span class="time">9:41</span><div class="icons"><div class="signal"><span></span><span></span><span></span><span></span></div><div class="battery"><div class="battery-fill"></div></div></div></div>
+        <div class="app-bar" style="background:#B71C1C;">
+          <div class="app-bar-title" style="color:#fff">🚨 Safe Route</div>
+          <div class="app-bar-action" style="background:rgba(255,255,255,0.15);color:#fff;">✕</div>
+        </div>
+        <div class="safe-bg">
+          <div class="safe-map-bg"></div>
+          <!-- Route visualisation -->
+          <div class="road h thick" style="top:40%;background:rgba(255,255,255,0.8);"></div>
+          <div class="road v thick" style="left:35%;background:rgba(255,255,255,0.8);"></div>
+          <div class="road h" style="top:60%;"></div>
+          <div class="road v" style="left:65%;"></div>
+          <!-- Flood zones -->
+          <div class="heat-circle" style="left:22%;top:45%;width:140px;height:140px;background:rgba(198,40,40,0.25);"></div>
+          <div class="heat-circle" style="left:22%;top:45%;width:80px;height:80px;background:rgba(198,40,40,0.35);"></div>
+          <!-- Route line (SVG) -->
+          <svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;" viewBox="0 0 390 550">
+            <polyline points="195,300 195,220 280,220 280,160 330,160" stroke="#388E3C" stroke-width="4" stroke-dasharray="10,6" fill="none" stroke-linecap="round"/>
+            <circle cx="195" cy="300" r="10" fill="#1565C0" stroke="#fff" stroke-width="2.5"/>
+            <circle cx="330" cy="160" r="10" fill="#388E3C" stroke="#fff" stroke-width="2.5"/>
+          </svg>
+          <!-- Markers -->
+          <div style="position:absolute;left:50%;top:54%;width:10px;height:10px;"></div>
+        </div>
+        <div class="safe-panel">
+          <div class="safe-panel-handle"></div>
+          <div class="safe-title">Suggested Safe Route</div>
+          <div class="safe-subtitle">Avoiding flood zones — estimated 12 min on foot</div>
+          <div class="safe-step">
+            <div class="step-num">1</div>
+            <div>
+              <div class="step-text">Head north on Manor Road</div>
+              <div class="step-dist">0.3 km</div>
+            </div>
+          </div>
+          <div class="safe-step">
+            <div class="step-num">2</div>
+            <div>
+              <div class="step-text">Turn right onto Sheen Road</div>
+              <div class="step-dist">0.6 km</div>
+            </div>
+          </div>
+          <div class="safe-step">
+            <div class="step-num">3</div>
+            <div>
+              <div class="step-text">Continue to Richmond Hill — higher ground</div>
+              <div class="step-dist">0.4 km</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  SCREEN 8 · Outside UK                     -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">Outside UK State</div>
+    <div class="phone">
+      <div class="dynamic-island"></div>
+      <div class="phone-inner">
+        <div class="status-bar"><span class="time">9:41</span><div class="icons"><div class="signal"><span></span><span></span><span></span><span></span></div><div class="battery"><div class="battery-fill"></div></div></div></div>
+        <div class="app-bar">
+          <div class="app-bar-title"><div class="app-icon-small">🌊</div>EcoFlood</div>
+          <div class="app-bar-action">🔔</div>
+        </div>
+        <div class="screen-body">
+          <!-- Location outside UK -->
+          <div class="card">
+            <div class="location-card">
+              <div class="loc-icon">📍</div>
+              <div class="loc-info">
+                <div class="loc-title">Your Location <span class="pill orange">India</span></div>
+                <div class="loc-coords">22.57264, 88.36389</div>
+                <div class="loc-acc">Accuracy ±20 m</div>
+              </div>
+            </div>
+          </div>
+          <!-- Outside UK card -->
+          <div class="card" style="background:#FFF8E1;border:1px solid rgba(230,81,0,0.2);">
+            <div style="display:flex;gap:14px;align-items:flex-start;">
+              <span style="font-size:28px;">🌐</span>
+              <div>
+                <div style="font-size:15px;font-weight:700;color:#E65100;margin-bottom:4px;">Outside the UK</div>
+                <div style="font-size:13px;color:#BF360C;line-height:1.5;">You're in India. EcoFlood only monitors flood stations within the United Kingdom. Please travel to the UK to access live data.</div>
+              </div>
+            </div>
+          </div>
+          <!-- AI card still shown -->
+          <div class="ai-card" style="opacity:0.6;">
+            <div class="ai-header">
+              <span>🧠</span>
+              <span class="ai-header-text">AI Flood Prediction · Next 3 Days</span>
+            </div>
+            <div style="color:rgba(255,255,255,0.6);font-size:13px;display:flex;align-items:center;gap:10px;">
+              <span>📡</span> Prediction unavailable outside the UK coverage area.
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active"><span class="nav-icon">🏠</span>Dashboard</div>
+          <div class="nav-item"><span class="nav-icon">🗺️</span>Map</div>
+          <div class="nav-item"><span class="nav-icon">⚠️</span>Alerts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  SCREEN 9 · Loading skeleton               -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="phone-label">Loading State</div>
+    <div class="phone">
+      <div class="dynamic-island"></div>
+      <div class="phone-inner">
+        <div class="status-bar"><span class="time">9:41</span><div class="icons"><div class="signal"><span></span><span></span><span></span><span></span></div><div class="battery"><div class="battery-fill"></div></div></div></div>
+        <div class="app-bar">
+          <div class="app-bar-title"><div class="app-icon-small">🌊</div>EcoFlood</div>
+          <div class="app-bar-action">🔔</div>
+        </div>
+        <div class="screen-body">
+          <!-- Location loading -->
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:20px;height:20px;border:2px solid #1565C0;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+              <span style="font-size:14px;color:#718096;">Detecting your location…</span>
+            </div>
+          </div>
+          <!-- AI skeleton -->
+          <div class="ai-card">
+            <div class="ai-header">
+              <span>🧠</span>
+              <span class="ai-header-text">AI Flood Prediction · Next 3 Days</span>
+              <div class="ai-pulse"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              <span style="color:rgba(255,255,255,0.55);font-size:15px;">📡</span>
+              <span style="font-weight:600;color:#fff;font-size:14px;">Analysing flood conditions…</span>
+            </div>
+            <div style="height:6px;background:rgba(255,255,255,0.18);border-radius:3px;margin-bottom:8px;"></div>
+            <div style="height:10px;background:rgba(255,255,255,0.12);border-radius:4px;width:75%;margin-bottom:6px;"></div>
+            <div style="height:10px;background:rgba(255,255,255,0.12);border-radius:4px;width:55%;margin-bottom:10px;"></div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.45);">Checking river levels, rainfall and 3-day forecast…</div>
+          </div>
+          <!-- Area risk loading -->
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:20px;height:20px;border:2px solid #1565C0;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+              <span style="font-size:14px;color:#718096;">Checking flood risk in your area…</span>
+            </div>
+          </div>
+          <!-- Skeleton cards -->
+          <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+            <div style="height:12px;background:#e2e8f0;border-radius:4px;width:60%;animation:shimmer 1.5s ease-in-out infinite;"></div>
+            <div style="height:10px;background:#e2e8f0;border-radius:4px;width:90%;animation:shimmer 1.5s ease-in-out infinite 0.1s;"></div>
+            <div style="height:10px;background:#e2e8f0;border-radius:4px;width:75%;animation:shimmer 1.5s ease-in-out infinite 0.2s;"></div>
+          </div>
+          <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+            <div style="height:12px;background:#e2e8f0;border-radius:4px;width:50%;animation:shimmer 1.5s ease-in-out infinite 0.15s;"></div>
+            <div style="height:10px;background:#e2e8f0;border-radius:4px;width:80%;animation:shimmer 1.5s ease-in-out infinite 0.25s;"></div>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="nav-item active"><span class="nav-icon">🏠</span>Dashboard</div>
+          <div class="nav-item"><span class="nav-icon">🗺️</span>Map</div>
+          <div class="nav-item"><span class="nav-icon">⚠️</span>Alerts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /phone-row 3 -->
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+</style>
+
+<!-- Footer -->
+<div style="text-align:center;color:#334155;font-size:12px;margin-top:20px;">
+  EcoFlood · Design System · 2026 · Built for UK Flood Intelligence
+</div>
+
+</body>
+</html>
