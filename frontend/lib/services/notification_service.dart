@@ -22,7 +22,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 const AndroidNotificationChannel floodChannel = AndroidNotificationChannel(
   'flood_alerts',
   'Flood Alerts',
-  description: 'Emergency flood risk notifications from EcoFlood',
+  description: 'Emergency flood risk notifications from FloodSense',
   importance: Importance.max,
   playSound: true,
   enableVibration: true,
@@ -101,7 +101,7 @@ class NotificationService {
     // Android: fires every ~15 min (OS minimum).
     // iOS: best-effort — iOS controls the actual schedule via BGTaskScheduler.
     await Workmanager().registerPeriodicTask(
-      'ecoflood_flood_check',
+      'floodsense_flood_check',
       floodCheckTask,
       frequency: const Duration(minutes: 15),
       constraints: Constraints(networkType: NetworkType.connected),

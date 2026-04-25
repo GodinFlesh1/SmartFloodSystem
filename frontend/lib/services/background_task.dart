@@ -9,7 +9,7 @@ import 'package:workmanager/workmanager.dart';
 import '../config/app_config.dart';
 import 'auth_service.dart';
 
-const String floodCheckTask = 'flood_check_task';
+const String floodCheckTask = 'floodsense_flood_check';
 
 // ── Workmanager entry point ────────────────────────────────────────────────────
 // Must be top-level and annotated — runs in a separate Dart isolate.
@@ -133,7 +133,7 @@ Future<void> _showNotification(String riskLevel, String stationName) async {
       android: AndroidNotificationDetails(
         'flood_alerts',
         'Flood Alerts',
-        channelDescription: 'Emergency flood risk notifications from EcoFlood',
+        channelDescription: 'Emergency flood risk notifications from FloodSense',
         importance: Importance.max,
         priority: Priority.max,
         playSound: true,

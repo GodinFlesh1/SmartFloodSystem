@@ -16,16 +16,16 @@ void main() async {
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  runApp(const EcoFloodApp());
+  runApp(const FloodSenseApp());
 }
 
-class EcoFloodApp extends StatelessWidget {
-  const EcoFloodApp({super.key});
+class FloodSenseApp extends StatelessWidget {
+  const FloodSenseApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'EcoFlood',
+      title: 'FloodSense',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),

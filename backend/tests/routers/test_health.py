@@ -4,7 +4,7 @@ def test_root_returns_healthy(client):
     body = r.json()
     assert body["status"] == "healthy"
     assert body["version"] == "1.0.0"
-    assert "EcoFlood" in body["message"]
+    assert "FloodSense" in body["message"]
 
 
 def test_health_returns_ok(client):

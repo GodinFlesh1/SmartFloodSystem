@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
@@ -10,14 +11,25 @@ class AuthService {
   static const String _deviceKey = 'device_id';
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: const String.fromEnvironment('GOOGLE_WEB_CLIENT_ID'),
+  );
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   User? get currentUser => _auth.currentUser;
 
   /// Returns a fresh ID token and caches it for background isolates.
+  /// Waits up to 5 seconds for auth state to restore on cold page load.
   Future<String?> getIdToken() async {
-    final token = await _auth.currentUser?.getIdToken();
+    User? user = _auth.currentUser;
+    if (user == null) {
+      user = await _auth
+          .authStateChanges()
+          .firstWhere((u) => u != null, orElse: () => null)
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+    }
+    final token = await user?.getIdToken();
     if (token != null) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_tokenKey, token);
@@ -30,6 +42,20 @@ class AuthService {
   static Future<String?> getStoredToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_tokenKey);
+  }
+
+  /// Signs in with Google and returns the Firebase User.
+  Future<User?> signInWithGoogle() async {
+    final googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null; // user cancelled
+
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+    final result = await _auth.signInWithCredential(credential);
+    return result.user;
   }
 
   /// Returns a stable device ID, generating and persisting one on first call.
@@ -60,36 +86,10 @@ class AuthService {
     return List.generate(32, (_) => random.nextInt(16).toRadixString(16)).join();
   }
 
-  Future<void> verifyPhoneNumber({
-    required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
-    required void Function(String error) onError,
-  }) async {
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: (credential) async {
-        await _auth.signInWithCredential(credential);
-      },
-      verificationFailed: (e) => onError(e.message ?? 'Verification failed'),
-      codeSent: (verificationId, _) => onCodeSent(verificationId),
-      codeAutoRetrievalTimeout: (_) {},
-    );
-  }
-
-  Future<void> signInWithOtp({
-    required String verificationId,
-    required String otp,
-  }) async {
-    final credential = PhoneAuthProvider.credential(
-      verificationId: verificationId,
-      smsCode: otp,
-    );
-    await _auth.signInWithCredential(credential);
-  }
-
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
+    await _googleSignIn.signOut();
     await _auth.signOut();
   }
 }

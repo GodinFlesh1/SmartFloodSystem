@@ -20,7 +20,7 @@ class GeocodingService {
 
     final response = await http.get(
       uri,
-      headers: {'Accept-Language': 'en', 'User-Agent': 'EcoFloodApp/1.0'},
+      headers: {'Accept-Language': 'en', 'User-Agent': 'FloodSenseApp/1.0'},
     ).timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200) return null;

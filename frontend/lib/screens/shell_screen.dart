@@ -548,7 +548,7 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
             const Icon(Icons.water, color: Colors.white, size: 22),
             const SizedBox(width: 8),
             Text(
-              'EcoFlood — $_appBarTitle',
+              'FloodSense — $_appBarTitle',
               style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.bold),
             ),

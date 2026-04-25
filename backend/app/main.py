@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="EcoFlood API",
+    title="FloodSense API",
     description="Real-time flood monitoring and early-warning system",
     version="1.0.0",
     lifespan=lifespan,
@@ -62,7 +62,7 @@ route_service = RouteService()
 
 @app.get("/")
 async def root():
-    return {"message": "EcoFlood API is running", "status": "healthy", "version": "1.0.0"}
+    return {"message": "FloodSense API is running", "status": "healthy", "version": "1.0.0"}
 
 @app.get("/health")
 async def health_check():
@@ -75,7 +75,7 @@ _ADMIN_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>EcoFlood Admin</title>
+  <title>FloodSense Admin</title>
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: 60px auto; padding: 0 20px; background: #f0f4f8; }
     h1   { color: #0D47A1; }

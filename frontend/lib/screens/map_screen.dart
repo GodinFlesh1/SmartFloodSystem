@@ -115,7 +115,7 @@ class _MapTabState extends State<MapTab> {
               TileLayer(
                 urlTemplate:
                     'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.ecoflood.app',
+                userAgentPackageName: 'com.floodsense.app',
               ),
               // Heatmap layer — shown only in heatmap mode
               if (_heatmapMode)
