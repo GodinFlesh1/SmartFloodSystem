@@ -8,6 +8,7 @@ import '../models/flood_prediction.dart';
 import '../services/api_service.dart';
 import '../services/cache_service.dart';
 import '../services/geocoding_service.dart';
+import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import 'home_screen.dart';
 import 'map_screen.dart';
@@ -571,6 +572,11 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
                 : const Icon(Icons.refresh, color: Colors.white),
             onPressed: _isBusy ? null : _fetchAll,
             tooltip: 'Refresh',
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'Sign out',
+            onPressed: () => AuthService().signOut(),
           ),
         ],
       ),

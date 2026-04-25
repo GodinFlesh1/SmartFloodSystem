@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/api_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -22,7 +21,6 @@ class _AuthScreenState extends State<AuthScreen> {
         setState(() { _loading = false; }); // user cancelled
         return;
       }
-      await ApiService().registerDevice();
       // authStateChanges in main.dart handles navigation automatically
     } catch (e) {
       setState(() {
