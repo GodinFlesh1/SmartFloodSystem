@@ -268,7 +268,7 @@ class DashboardTab extends StatelessWidget {
                           color: Colors.orange.shade800)),
                   Text(
                       'You\'re in ${country!.countryName}. '
-                      'EcoFlood only works within the United Kingdom.',
+                      'FloodSense only works within the United Kingdom.',
                       style: TextStyle(
                           fontSize: 13,
                           color: Colors.orange.shade700,

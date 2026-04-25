@@ -1,11 +1,11 @@
 {
-    "name": "frontend",
-    "short_name": "frontend",
+    "name": "FloodSense",
+    "short_name": "FloodSense",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0D47A1",
     "theme_color": "#1565C0",
-    "description": "A new Flutter project.",
+    "description": "Real-time flood early warning system for the UK.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

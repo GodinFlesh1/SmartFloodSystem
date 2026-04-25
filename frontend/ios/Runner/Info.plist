@@ -37,15 +37,15 @@
 		<!-- BGTaskScheduler identifiers for workmanager (must match task names) -->
 		<key>BGTaskSchedulerPermittedIdentifiers</key>
 		<array>
-			<string>ecoflood_flood_check</string>
+			<string>floodsense_flood_check</string>
 		</array>
 		<!-- Location usage descriptions (required for App Store / iOS permission dialogs) -->
 		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>EcoFlood needs your location to check for nearby flood risks.</string>
+		<string>FloodSense needs your location to check for nearby flood risks.</string>
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-		<string>EcoFlood monitors your location in the background to alert you of flood risks even when the app is closed.</string>
+		<string>FloodSense monitors your location in the background to alert you of flood risks even when the app is closed.</string>
 		<key>NSLocationAlwaysUsageDescription</key>
-		<string>EcoFlood monitors your location in the background to alert you of flood risks even when the app is closed.</string>
+		<string>FloodSense monitors your location in the background to alert you of flood risks even when the app is closed.</string>
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>

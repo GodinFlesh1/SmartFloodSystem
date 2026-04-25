@@ -381,7 +381,7 @@ class _SafeRouteScreenState extends State<SafeRouteScreen> {
                   TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.ecoflood.app',
+                    userAgentPackageName: 'com.floodsense.app',
                   ),
                   if (routePts.isNotEmpty)
                     PolylineLayer(

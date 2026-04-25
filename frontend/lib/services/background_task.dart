@@ -1,12 +1,15 @@
+import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
-import 'api_service.dart';
+import '../config/app_config.dart';
+import 'auth_service.dart';
 
-const String floodCheckTask = 'flood_check_task';
+const String floodCheckTask = 'floodsense_flood_check';
 
 // ── Workmanager entry point ────────────────────────────────────────────────────
 // Must be top-level and annotated — runs in a separate Dart isolate.
@@ -30,12 +33,21 @@ Future<void> _runFloodCheck() async {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (nowMs - lastMs < 3600000) return;
 
-    // 2. Firebase must be initialised in every isolate
+    // 2. Firebase must be initialised in every isolate (for SharedPreferences
+    //    plugin compatibility — FirebaseAuth state is NOT available here)
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp();
     }
 
-    // 3. Get current position (prefer last known for speed; fall back to fresh fix)
+    // 3. Read the cached auth token — FirebaseAuth.currentUser is null in
+    //    background isolates, so we use the token saved by the foreground app.
+    final token = await AuthService.getStoredToken();
+    if (token == null) {
+      debugPrint('[BG] No stored auth token — skipping flood check.');
+      return;
+    }
+
+    // 4. Get current position (prefer last known for speed; fall back to fresh fix)
     Position? position;
     try {
       position = await Geolocator.getLastKnownPosition();
@@ -51,24 +63,45 @@ Future<void> _runFloodCheck() async {
       return;
     }
 
-    // 4. Fetch nearby stations via the backend
-    final stations = await ApiService().getNearbyStations(
-      lat: position.latitude,
-      lon: position.longitude,
+    // 5. Fetch nearby stations directly — ApiService cannot be used in
+    //    isolates because it depends on FirebaseAuth state.
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/api/live/stations/nearby'
+      '?lat=${position.latitude}&lon=${position.longitude}&radius_km=5',
     );
+    final response = await http
+        .get(uri, headers: {'Authorization': 'Bearer $token'})
+        .timeout(const Duration(seconds: 15));
 
-    // 5. Find the worst HIGH/SEVERE station
+    if (response.statusCode != 200) {
+      debugPrint('[BG] API error ${response.statusCode}');
+      return;
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (data['success'] != true) return;
+
+    final stationsRaw = data['stations'] as List<dynamic>? ?? [];
+
+    // 6. Find the worst HIGH/SEVERE station
     const alertLevels = {'SEVERE', 'HIGH'};
-    final alerts = stations
-        .where((s) => alertLevels.contains(s.riskLevel.toUpperCase()))
+    final alerts = stationsRaw
+        .cast<Map<String, dynamic>>()
+        .where((s) => alertLevels.contains(
+              (s['risk_level'] as String? ?? '').toUpperCase(),
+            ))
         .toList()
-      ..sort((a, b) => _score(b.riskLevel) - _score(a.riskLevel));
+      ..sort((a, b) =>
+          _score(b['risk_level'] as String) - _score(a['risk_level'] as String));
 
     if (alerts.isEmpty) return;
 
-    // 6. Show local notification
+    // 7. Show local notification
     final worst = alerts.first;
-    await _showNotification(worst.riskLevel, worst.stationName);
+    await _showNotification(
+      worst['risk_level'] as String,
+      worst['station_name'] as String? ?? 'Nearby station',
+    );
     await prefs.setInt('last_flood_notification_ms', nowMs);
   } catch (e) {
     debugPrint('[BG] Flood check error: $e');
@@ -100,7 +133,7 @@ Future<void> _showNotification(String riskLevel, String stationName) async {
       android: AndroidNotificationDetails(
         'flood_alerts',
         'Flood Alerts',
-        channelDescription: 'Emergency flood risk notifications from EcoFlood',
+        channelDescription: 'Emergency flood risk notifications from FloodSense',
         importance: Importance.max,
         priority: Priority.max,
         playSound: true,

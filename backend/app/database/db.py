@@ -163,6 +163,34 @@ async def mark_user_alerted(user_id: str) -> None:
         print(f"Error marking user alerted: {e}")
 
 
+# ── DEVICE BINDING ────────────────────────────────────────────────────────────
+
+async def get_device_id_for_user(firebase_uid: str) -> Optional[str]:
+    try:
+        result = (
+            supabase.table('user_devices')
+            .select('device_id')
+            .eq('firebase_uid', firebase_uid)
+            .execute()
+        )
+        return result.data[0]['device_id'] if result.data else None
+    except Exception as e:
+        print(f"Error fetching device_id: {e}")
+        return None
+
+
+async def register_device(firebase_uid: str, device_id: str) -> bool:
+    try:
+        supabase.table('user_devices').upsert(
+            {'firebase_uid': firebase_uid, 'device_id': device_id},
+            on_conflict='firebase_uid',
+        ).execute()
+        return True
+    except Exception as e:
+        print(f"Error registering device: {e}")
+        return False
+
+
 # ── GEO ───────────────────────────────────────────────────────────────────────
 
 def _haversine(lat1, lon1, lat2, lon2) -> float:

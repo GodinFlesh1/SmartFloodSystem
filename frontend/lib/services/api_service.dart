@@ -5,9 +5,37 @@ import '../models/station.dart';
 import '../models/station_detail.dart';
 import '../models/flood_prediction.dart';
 import '../models/safe_route.dart';
+import 'auth_service.dart';
 
 class ApiService {
   static const String _baseUrl = AppConfig.apiBaseUrl;
+  final _auth = AuthService();
+
+  Future<Map<String, String>> _authHeaders() async {
+    final token = await _auth.getIdToken();
+    if (token == null) throw Exception('Not authenticated');
+    final deviceId = await AuthService.getDeviceId();
+    return {
+      'Authorization': 'Bearer $token',
+      'X-Device-ID': deviceId,
+    };
+  }
+
+  Future<void> registerDevice() async {
+    final token = await _auth.getIdToken();
+    if (token == null) throw Exception('Not authenticated');
+    final deviceId = await AuthService.getDeviceId();
+    final uri = Uri.parse('$_baseUrl/api/auth/register-device');
+    await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: '{"device_id":"$deviceId"}',
+    ).timeout(const Duration(seconds: 10));
+  }
+
   Future<List<Station>> getNearbyStations({
     required double lat,
     required double lon,
@@ -17,17 +45,16 @@ class ApiService {
       '$_baseUrl/api/live/stations/nearby?lat=$lat&lon=$lon&radius_km=$radiusKm',
     );
 
-    final response = await http.get(uri).timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(uri, headers: await _authHeaders())
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}: ${response.body}');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-    if (data['success'] != true) {
-      throw Exception(data['error'] ?? 'Unknown API error');
-    }
+    if (data['success'] != true) throw Exception(data['error'] ?? 'Unknown API error');
 
     final stationsJson = data['stations'] as List<dynamic>? ?? [];
     return stationsJson
@@ -37,17 +64,14 @@ class ApiService {
 
   Future<StationDetail> getStationDetail(String stationId) async {
     final uri = Uri.parse('$_baseUrl/api/ea/stations/$stationId/latest');
-    final response = await http.get(uri).timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(uri, headers: await _authHeaders())
+        .timeout(const Duration(seconds: 15));
 
-    if (response.statusCode != 200) {
-      throw Exception('API error ${response.statusCode}');
-    }
+    if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-    if (data['success'] != true) {
-      throw Exception(data['error'] ?? 'Unknown error');
-    }
+    if (data['success'] != true) throw Exception(data['error'] ?? 'Unknown error');
 
     return StationDetail.fromJson(data);
   }
@@ -56,19 +80,17 @@ class ApiService {
     required double lat,
     required double lon,
   }) async {
-    final uri = Uri.parse(
-      '$_baseUrl/api/predict/flood-risk?lat=$lat&lon=$lon',
-    );
-    final response = await http.get(uri).timeout(const Duration(seconds: 20));
+    final uri = Uri.parse('$_baseUrl/api/predict/flood-risk?lat=$lat&lon=$lon');
+    final response = await http
+        .get(uri, headers: await _authHeaders())
+        .timeout(const Duration(seconds: 20));
 
     if (response.statusCode != 200) {
       throw Exception('Prediction API error ${response.statusCode}');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    if (data['success'] != true) {
-      throw Exception(data['error'] ?? 'Prediction failed');
-    }
+    if (data['success'] != true) throw Exception(data['error'] ?? 'Prediction failed');
     return FloodPrediction.fromJson(data);
   }
 
@@ -81,17 +103,16 @@ class ApiService {
     final uri = Uri.parse(
       '$_baseUrl/api/safe-route?lat=$lat&lon=$lon&radius_m=$radiusM&profile=$profile',
     );
-    // Generous timeout — backend retries Overpass up to 3 radii × 2 attempts
-    final response = await http.get(uri).timeout(const Duration(seconds: 90));
+    final response = await http
+        .get(uri, headers: await _authHeaders())
+        .timeout(const Duration(seconds: 90));
 
     if (response.statusCode != 200) {
       throw Exception('Safe route API error ${response.statusCode}');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    if (data['success'] != true) {
-      throw Exception(data['error'] ?? 'Could not find safe route');
-    }
+    if (data['success'] != true) throw Exception(data['error'] ?? 'Could not find safe route');
     return SafeRoute.fromJson(data);
   }
 
@@ -106,16 +127,14 @@ class ApiService {
       '$_baseUrl/api/route?from_lat=$fromLat&from_lon=$fromLon'
       '&to_lat=$toLat&to_lon=$toLon&profile=$profile',
     );
-    final response = await http.get(uri).timeout(const Duration(seconds: 30));
+    final response = await http
+        .get(uri, headers: await _authHeaders())
+        .timeout(const Duration(seconds: 30));
 
-    if (response.statusCode != 200) {
-      throw Exception('Route API error ${response.statusCode}');
-    }
+    if (response.statusCode != 200) throw Exception('Route API error ${response.statusCode}');
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    if (data['success'] != true) {
-      throw Exception(data['error'] ?? 'Could not get route');
-    }
+    if (data['success'] != true) throw Exception(data['error'] ?? 'Could not get route');
     return RouteData.fromJson(data);
   }
 }
