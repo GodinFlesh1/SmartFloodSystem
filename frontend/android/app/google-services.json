@@ -12,7 +12,20 @@
           "package_name": "com.ecoflood.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "415217552470-pt0bjl5jvij8kod8iojo5khhat3qaeqb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ecoflood.app",
+            "certificate_hash": "8ce3ca7a21af35967dfaf5d34ef4165c5c34fa34"
+          }
+        },
+        {
+          "client_id": "415217552470-l43g4q6c0ibrcknesuqg136bnd34gg61.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBSNURFASdwg7UDAbQza0omCKMvzBP3Kz8"
@@ -20,26 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:415217552470:android:7d9cd791a93a8e6b3fbff7",
-        "android_client_info": {
-          "package_name": "com.example.frontend"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBSNURFASdwg7UDAbQza0omCKMvzBP3Kz8"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "415217552470-l43g4q6c0ibrcknesuqg136bnd34gg61.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "415217552470-olsaps0d07kdqja94v99ru1bumj632rq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.frontend"
+              }
+            }
+          ]
         }
       }
     }

@@ -12,7 +12,14 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: const String.fromEnvironment('GOOGLE_WEB_CLIENT_ID'),
+    // Web: clientId drives the OAuth popup flow
+    // Android/iOS: serverClientId tells Google which server to mint the ID token for
+    clientId: kIsWeb
+        ? const String.fromEnvironment('GOOGLE_WEB_CLIENT_ID')
+        : null,
+    serverClientId: kIsWeb
+        ? null
+        : const String.fromEnvironment('GOOGLE_WEB_CLIENT_ID'),
   );
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
