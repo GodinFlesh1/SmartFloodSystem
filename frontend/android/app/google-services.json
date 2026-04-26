@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "415217552470-t6k336b5383h1i8p8as3h2k3m4b98690.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ecoflood.app",
+            "certificate_hash": "79d72e67c6ea5c38772abaefe3c136fcc9356e32"
+          }
+        },
+        {
           "client_id": "415217552470-l43g4q6c0ibrcknesuqg136bnd34gg61.apps.googleusercontent.com",
           "client_type": 3
         }
