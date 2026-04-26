@@ -96,6 +96,7 @@ class AuthService {
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
+    await prefs.remove(_deviceKey);
     await _googleSignIn.signOut();
     await _auth.signOut();
   }

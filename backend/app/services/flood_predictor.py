@@ -159,26 +159,32 @@ class FloodPredictor:
         cache_key = (round(lat, 2), round(lon, 2))
         if cache_key in _weather_cache:
             return _weather_cache[cache_key]
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(WEATHER_URL, params={
-                    "latitude":      round(lat, 4),
-                    "longitude":     round(lon, 4),
-                    "daily":         ",".join([
-                        "precipitation_sum",
-                        "rain_sum",
-                        "wind_speed_10m_max",
-                        "temperature_2m_max",
-                        "temperature_2m_min",
-                    ]),
-                    "timezone":      "Europe/London",
-                    "past_days":     14,
-                    "forecast_days": 4,   # today + next 3 days
-                })
-                resp.raise_for_status()
-                payload = resp.json().get("daily", {})
-        except Exception:
-            _weather_cache[cache_key] = None
+        params = {
+            "latitude":      round(lat, 4),
+            "longitude":     round(lon, 4),
+            "daily":         "precipitation_sum,wind_speed_10m_max,temperature_2m_max,temperature_2m_min",
+            "timezone":      "Europe/London",
+            "past_days":     14,
+            "forecast_days": 4,
+        }
+        payload = {}
+        last_err = None
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=20) as client:
+                    resp = await client.get(WEATHER_URL, params=params)
+                    resp.raise_for_status()
+                    payload = resp.json().get("daily", {})
+                    last_err = None
+                    break
+            except Exception as e:
+                last_err = e
+                print(f"[Weather] attempt {attempt + 1} failed for ({lat},{lon}): {e}")
+                if attempt < 2:
+                    await asyncio.sleep(1)
+
+        if last_err is not None:
+            print(f"[Weather] all retries failed for ({lat},{lon}): {last_err}")
             return None
 
         times    = payload.get("time", [])
@@ -474,15 +480,15 @@ class FloodPredictor:
             histories = gathered[1 : n + 1]
             metas     = gathered[n + 1 :]
 
+        weather_available = weather is not None
         if weather is None:
-            return {
-                "success":     True,
-                "risk_level":  "UNKNOWN",
-                "probability": 0.0,
-                "confidence":  "low",
-                "reason":      "Weather data unavailable — unable to produce a reliable forecast.",
-                "top_station": "",
-                "station_predictions": [],
+            # Fall back to neutral weather so the model can still use water-level data
+            weather = {
+                "rain_past_1d": 0.0, "rain_past_3d": 0.0,
+                "rain_past_7d": 0.0, "rain_past_14d": 0.0,
+                "rain_next_1d": 0.0, "rain_next_3d": 0.0,
+                "temperature_2m_max": 12.0, "temperature_2m_min": 6.0,
+                "wind_speed_10m_max": 5.0,
             }
 
         results = []
@@ -525,6 +531,10 @@ class FloodPredictor:
 
         risk_level, confidence = self._classify_risk(prob, top, weather)
         reason = _build_reason(risk_level, weather, top, results)
+
+        if not weather_available:
+            confidence = "low"
+            reason += " (Weather forecast unavailable — rainfall data estimated.)"
 
         return {
             "success":             True,

@@ -89,6 +89,8 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
   // ── Initial data fetch ────────────────────────────────────────────────────
 
   Future<void> _fetchAll() async {
+    // Register/update device binding — fire and forget, never blocks the UI
+    _apiService.registerDevice().catchError((_) {});
     // Init notifications first — must not be blocked by location
     try { await NotificationService().init(); } catch (_) {}
     await _getLocation();
@@ -193,9 +195,9 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       _predictionError = null;
     });
 
-    // Show cached prediction immediately, then fetch fresh in background
+    // Show cached prediction immediately only if it is a real result (not UNKNOWN)
     final cachedData = await _cache.loadPrediction();
-    if (cachedData != null && mounted) {
+    if (cachedData != null && cachedData['risk_level'] != 'UNKNOWN' && mounted) {
       setState(() {
         _prediction = FloodPrediction.fromJson(cachedData);
         _loadingPrediction = false;
@@ -207,12 +209,14 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
         lat: _position!.latitude,
         lon: _position!.longitude,
       );
-      await _cache.savePrediction(prediction.toJson());
+      // Only cache real predictions — never cache UNKNOWN so the next refresh retries
+      if (prediction.riskLevel != 'UNKNOWN') {
+        await _cache.savePrediction(prediction.toJson());
+      }
       if (mounted) setState(() => _prediction = prediction);
     } catch (e) {
-      if (_prediction == null && mounted) {
-        setState(() => _predictionError = e.toString());
-      }
+      // Always show the error on refresh — don't silently hide it behind stale cache
+      if (mounted) setState(() => _predictionError = e.toString());
     } finally {
       if (mounted) setState(() => _loadingPrediction = false);
     }
@@ -545,13 +549,17 @@ class _ShellScreenState extends State<ShellScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         backgroundColor: const Color(0xFF1565C0),
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.water, color: Colors.white, size: 22),
             const SizedBox(width: 8),
-            Text(
-              'FloodSense — $_appBarTitle',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
+            Flexible(
+              child: Text(
+                'FloodSense — $_appBarTitle',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),

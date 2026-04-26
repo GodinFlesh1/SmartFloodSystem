@@ -12,13 +12,25 @@ class ApiService {
   final _auth = AuthService();
 
   Future<Map<String, String>> _authHeaders() async {
-    final token = await _auth.getIdToken();
+    // Try live Firebase token first; fall back to cached token for background isolates
+    String? token = await _auth.getIdToken();
+    token ??= await AuthService.getStoredToken();
     if (token == null) throw Exception('Not authenticated');
     final deviceId = await AuthService.getDeviceId();
     return {
       'Authorization': 'Bearer $token',
       'X-Device-ID': deviceId,
     };
+  }
+
+  // Signs out automatically if the backend says this device was replaced by another.
+  void _checkDeviceKicked(http.Response response) {
+    if (response.statusCode == 403) {
+      final body = response.body.toLowerCase();
+      if (body.contains('another device') || body.contains('device')) {
+        _auth.signOut();
+      }
+    }
   }
 
   Future<void> registerDevice() async {
@@ -49,6 +61,7 @@ class ApiService {
         .get(uri, headers: await _authHeaders())
         .timeout(const Duration(seconds: 15));
 
+    _checkDeviceKicked(response);
     if (response.statusCode != 200) {
       throw Exception('API error ${response.statusCode}: ${response.body}');
     }
@@ -68,6 +81,7 @@ class ApiService {
         .get(uri, headers: await _authHeaders())
         .timeout(const Duration(seconds: 15));
 
+    _checkDeviceKicked(response);
     if (response.statusCode != 200) throw Exception('API error ${response.statusCode}');
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -85,6 +99,7 @@ class ApiService {
         .get(uri, headers: await _authHeaders())
         .timeout(const Duration(seconds: 20));
 
+    _checkDeviceKicked(response);
     if (response.statusCode != 200) {
       throw Exception('Prediction API error ${response.statusCode}');
     }
@@ -107,6 +122,7 @@ class ApiService {
         .get(uri, headers: await _authHeaders())
         .timeout(const Duration(seconds: 90));
 
+    _checkDeviceKicked(response);
     if (response.statusCode != 200) {
       throw Exception('Safe route API error ${response.statusCode}');
     }
@@ -131,6 +147,7 @@ class ApiService {
         .get(uri, headers: await _authHeaders())
         .timeout(const Duration(seconds: 30));
 
+    _checkDeviceKicked(response);
     if (response.statusCode != 200) throw Exception('Route API error ${response.statusCode}');
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;

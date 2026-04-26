@@ -24,7 +24,7 @@ class _AuthScreenState extends State<AuthScreen> {
       // authStateChanges in main.dart handles navigation automatically
     } catch (e) {
       setState(() {
-        _error = 'Sign-in failed. Please try again.';
+        _error = e.toString();
         _loading = false;
       });
     }
